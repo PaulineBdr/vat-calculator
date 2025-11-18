@@ -1,751 +1,702 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VAT Calculator</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VAT Calculator</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body { margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .print-section { box-shadow: none !important; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
+        }
+    </style>
 </head>
 <body>
-  <div id="root"></div>
+    <div id="root"></div>
 
-  <script type="text/babel">
-    const { useState } = React;
+    <script type="text/babel">
+        const { useState } = React;
 
-    // Composants Lucide React en inline
-    const Upload = ({ className }) => (
-      <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-        <polyline points="17 8 12 3 7 8"></polyline>
-        <line x1="12" y1="3" x2="12" y2="15"></line>
-      </svg>
-    );
+        // Lucide Icons as SVG components
+        const Upload = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+            </svg>
+        );
 
-    const FileText = ({ className }) => (
-      <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-        <line x1="16" y1="13" x2="8" y2="13"></line>
-        <line x1="16" y1="17" x2="8" y2="17"></line>
-        <polyline points="10 9 9 9 8 9"></polyline>
-      </svg>
-    );
+        const FileText = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+            </svg>
+        );
 
-    const FileSpreadsheet = ({ className }) => (
-      <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-        <path d="M8 13h2"></path>
-        <path d="M8 17h2"></path>
-        <path d="M14 13h2"></path>
-        <path d="M14 17h2"></path>
-      </svg>
-    );
+        const FileSpreadsheet = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="8" y1="13" x2="16" y2="13"/>
+                <line x1="8" y1="17" x2="16" y2="17"/>
+            </svg>
+        );
 
-    const FileType = ({ className }) => (
-      <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-        <path d="M9 13v-1h6v1"></path>
-        <path d="M12 12v7"></path>
-        <path d="M9 19h6"></path>
-      </svg>
-    );
+        const FileType = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+            </svg>
+        );
 
-    function VATCalculator() {
-      const [data, setData] = useState([]);
-      const [fileName, setFileName] = useState('');
-      const [error, setError] = useState('');
-      const [vatRateAppointment, setVatRateAppointment] = useState(20);
-      const [vatRateProduct, setVatRateProduct] = useState(20);
-      const [vatRateGiftVoucher, setVatRateGiftVoucher] = useState(0);
-      const [exportLanguage, setExportLanguage] = useState('en');
-      
-      const [enableSpecificProductRate, setEnableSpecificProductRate] = useState(false);
-      const [vatRateProductSpecific, setVatRateProductSpecific] = useState(5.5);
-      const [specificProductCategoryName, setSpecificProductCategoryName] = useState('Product (Specific)');
-      const [specificProductKeywords, setSpecificProductKeywords] = useState('');
-      
-      const [packageKeywords, setPackageKeywords] = useState('séances,séance,forfait,package,abonnement,subscription,sessions,session');
-      const [giftVoucherKeywords, setGiftVoucherKeywords] = useState('bon cadeau,chèque cadeau,carte cadeau,gift card,gift voucher,voucher,gift certificate,massage,soin,spa,coupe,cut,coloration,color,balayage,mèches,highlights,brushing,manucure,manicure,pédicure,pedicure,facial,épilation,waxing,maquillage,makeup,soins du visage,skincare');
-      const [showKeywords, setShowKeywords] = useState(false);
-
-      const translateCategory = (category) => {
-        if (exportLanguage === 'fr') {
-          const translations = {
-            'Appointment': 'Rendez-vous',
-            'Package': 'Forfait',
-            'Product': 'Produit',
-            'Gift Voucher': 'Bon Cadeau'
-          };
-          return translations[category] || category;
-        }
-        return category;
-      };
-
-      const handleFileUpload = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        setFileName(file.name);
-        setError('');
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const text = e.target.result;
-            const lines = text.split('\n');
-            const headers = lines[0].split(',').map(h => h.trim());
+        function VATCalculator() {
+            const [data, setData] = useState([]);
+            const [fileName, setFileName] = useState('');
+            const [error, setError] = useState('');
+            const [vatRateAppointment, setVatRateAppointment] = useState(20);
+            const [vatRateProduct, setVatRateProduct] = useState(20);
+            const [vatRateGiftVoucher, setVatRateGiftVoucher] = useState(0);
+            const [exportLanguage, setExportLanguage] = useState('en');
             
-            const parsedData = [];
-            const paymentGroups = {};
+            const [enableSpecificProductRate, setEnableSpecificProductRate] = useState(false);
+            const [vatRateProductSpecific, setVatRateProductSpecific] = useState(5.5);
+            const [specificProductCategoryName, setSpecificProductCategoryName] = useState('Product (Specific)');
+            const [specificProductKeywords, setSpecificProductKeywords] = useState('');
             
-            for (let i = 1; i < lines.length; i++) {
-              if (!lines[i].trim()) continue;
-              
-              const values = [];
-              let current = '';
-              let inQuotes = false;
-              
-              for (let char of lines[i]) {
-                if (char === '"') {
-                  inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                  values.push(current.trim());
-                  current = '';
-                } else {
-                  current += char;
+            const [packageKeywords, setPackageKeywords] = useState('séances,séance,forfait,package,abonnement,subscription,sessions,session');
+            const [giftVoucherKeywords, setGiftVoucherKeywords] = useState('bon cadeau,chèque cadeau,carte cadeau,gift card,gift voucher,voucher,gift certificate,massage,soin,spa,coupe,cut,coloration,color,balayage,mèches,highlights,brushing,manucure,manicure,pédicure,pedicure,facial,épilation,waxing,maquillage,makeup,soins du visage,skincare');
+            const [showKeywords, setShowKeywords] = useState(false);
+
+            const translateCategory = (category) => {
+                if (exportLanguage === 'fr') {
+                    const translations = {
+                        'Appointment': 'Rendez-vous',
+                        'Package': 'Forfait',
+                        'Product': 'Produit',
+                        'Gift Voucher': 'Bon Cadeau'
+                    };
+                    return translations[category] || category;
                 }
-              }
-              values.push(current.trim());
-              
-              const row = {};
-              headers.forEach((header, index) => {
-                row[header] = values[index] || '';
-              });
-                            
-              const paymentId = row.payment;
-              if (!paymentGroups[paymentId]) {
-                paymentGroups[paymentId] = [];
-              }
-              paymentGroups[paymentId].push(row);
-            }
-            
-            const packageKw = packageKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
-            const giftKw = giftVoucherKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
-            const specificProdKw = enableSpecificProductRate ? specificProductKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k) : [];
-            
-            for (const paymentId in paymentGroups) {
-              const group = paymentGroups[paymentId];
-              
-              const hasPayment = group.some(row => {
-                const transaction = row.transaction?.toLowerCase() || '';
-                const grossValue = parseFloat(row.gross_value) || 0;
-                return grossValue < 0 || 
-                       transaction.includes('carte') || 
-                       transaction.includes('espèces') ||
-                       transaction.includes('especes') ||
-                       transaction.includes('virement') ||
-                       transaction.includes('cash') ||
-                       transaction.includes('card');
-              });
-              
-              group.forEach(row => {
-                const transaction = row.transaction?.toLowerCase() || '';
-                const type = row.type?.toLowerCase() || '';
-                const grossValue = parseFloat(row.gross_value) || 0;
-                
-                if (hasPayment && grossValue > 0) {
-                  if (transaction === 'appointment') {
-                    row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
-                    row.vat_rate = vatRateAppointment;
-                    row.vat_category = 'Appointment';
-                  } else if (transaction === 'product_sale') {
-                    const isPackage = packageKw.some(keyword => type.includes(keyword));
-                    
-                    if (isPackage) {
-                      row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
-                      row.vat_rate = vatRateAppointment;
-                      row.vat_category = 'Package';
-                    } else {
-                      const isGiftVoucher = giftKw.some(keyword => type.includes(keyword));
-                    
-                      if (isGiftVoucher) {
-                        row.vat_amount = (grossValue * (vatRateGiftVoucher / 100)).toFixed(2);
-                        row.vat_rate = vatRateGiftVoucher;
-                        row.vat_category = 'Gift Voucher';
-                      } else {
-                        const isSpecificProduct = enableSpecificProductRate && specificProdKw.some(keyword => {
-                          return type === keyword || type.trim() === keyword.trim();
-                        });
+                return category;
+            };
+
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                setFileName(file.name);
+                setError('');
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split('\n');
+                        const headers = lines[0].split(',').map(h => h.trim());
                         
-                        if (isSpecificProduct) {
-                          row.vat_amount = (grossValue * (vatRateProductSpecific / 100)).toFixed(2);
-                          row.vat_rate = vatRateProductSpecific;
-                          row.vat_category = specificProductCategoryName;
-                        } else {
-                          row.vat_amount = (grossValue * (vatRateProduct / 100)).toFixed(2);
-                          row.vat_rate = vatRateProduct;
-                          row.vat_category = 'Product';
+                        const parsedData = [];
+                        const paymentGroups = {};
+                        
+                        for (let i = 1; i < lines.length; i++) {
+                            if (!lines[i].trim()) continue;
+                            
+                            const values = [];
+                            let current = '';
+                            let inQuotes = false;
+                            
+                            for (let char of lines[i]) {
+                                if (char === '"') {
+                                    inQuotes = !inQuotes;
+                                } else if (char === ',' && !inQuotes) {
+                                    values.push(current.trim());
+                                    current = '';
+                                } else {
+                                    current += char;
+                                }
+                            }
+                            values.push(current.trim());
+                            
+                            const row = {};
+                            headers.forEach((header, index) => {
+                                const cleanHeader = header.trim().toLowerCase();
+                                row[header] = values[index] || '';
+                                
+                                // Copier aussi dans 'Heure et jour' si c'est la colonne datetime
+                                if (cleanHeader === 'datetime' || cleanHeader === 'date and time' || cleanHeader === 'date_and_time' || cleanHeader === 'heure et jour') {
+                                    row['Heure et jour'] = values[index] || '';
+                                }
+                            });
+                            
+                            const paymentId = row.payment;
+                            if (!paymentGroups[paymentId]) {
+                                paymentGroups[paymentId] = [];
+                            }
+                            paymentGroups[paymentId].push(row);
                         }
-                      }
+                        
+                        const packageKw = packageKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
+                        const giftKw = giftVoucherKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
+                        const specificProdKw = enableSpecificProductRate ? specificProductKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k) : [];
+                        
+                        for (const paymentId in paymentGroups) {
+                            const group = paymentGroups[paymentId];
+                            
+                            const hasPayment = group.some(row => {
+                                const transaction = row.transaction?.toLowerCase() || '';
+                                const grossValue = parseFloat(row.gross_value) || 0;
+                                return grossValue < 0 || 
+                                       transaction.includes('carte') || 
+                                       transaction.includes('espèces') ||
+                                       transaction.includes('especes') ||
+                                       transaction.includes('virement') ||
+                                       transaction.includes('cash') ||
+                                       transaction.includes('card');
+                            });
+                            
+                            group.forEach(row => {
+                                const transaction = row.transaction?.toLowerCase() || '';
+                                const type = row.type?.toLowerCase() || '';
+                                const grossValue = parseFloat(row.gross_value) || 0;
+                                
+                                if (hasPayment && grossValue > 0) {
+                                    if (transaction === 'appointment') {
+                                        row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
+                                        row.vat_rate = vatRateAppointment;
+                                        row.vat_category = 'Appointment';
+                                    } else if (transaction === 'product_sale') {
+                                        const isPackage = packageKw.some(keyword => type.includes(keyword));
+                                        
+                                        if (isPackage) {
+                                            row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
+                                            row.vat_rate = vatRateAppointment;
+                                            row.vat_category = 'Package';
+                                        } else {
+                                            const isGiftVoucher = giftKw.some(keyword => type.includes(keyword));
+                                            
+                                            if (isGiftVoucher) {
+                                                row.vat_amount = (grossValue * (vatRateGiftVoucher / 100)).toFixed(2);
+                                                row.vat_rate = vatRateGiftVoucher;
+                                                row.vat_category = 'Gift Voucher';
+                                            } else {
+                                                const isSpecificProduct = enableSpecificProductRate && specificProdKw.some(keyword => type.includes(keyword));
+                                                
+                                                if (isSpecificProduct) {
+                                                    row.vat_amount = (grossValue * (vatRateProductSpecific / 100)).toFixed(2);
+                                                    row.vat_rate = vatRateProductSpecific;
+                                                    row.vat_category = specificProductCategoryName;
+                                                } else {
+                                                    row.vat_amount = (grossValue * (vatRateProduct / 100)).toFixed(2);
+                                                    row.vat_rate = vatRateProduct;
+                                                    row.vat_category = 'Product';
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        row.vat_amount = '';
+                                        row.vat_rate = '';
+                                        row.vat_category = '';
+                                    }
+                                } else {
+                                    row.vat_amount = '';
+                                    row.vat_rate = '';
+                                    row.vat_category = '';
+                                }
+                                
+                                parsedData.push(row);
+                            });
+                        }
+                        
+                        setData(parsedData);
+                    } catch (err) {
+                        setError('Error reading file: ' + err.message);
                     }
-                  } else {
-                    row.vat_amount = '';
-                    row.vat_rate = '';
-                    row.vat_category = '';
-                  }
-                } else {
-                  row.vat_amount = '';
-                  row.vat_rate = '';
-                  row.vat_category = '';
-                }
+                };
                 
-                parsedData.push(row);
-              });
-            }
-            
-            setData(parsedData);
-          } catch (err) {
-            setError('Error reading file: ' + err.message);
-          }
-        };
-        
-        reader.readAsText(file);
-      };
-
-      const downloadCSV = () => {
-        if (data.length === 0) return;
-        
-        const headers = exportLanguage === 'fr' 
-          ? ['paiement', 'Heure et jour', 'transaction', 'type', 'valeur_brute', 
-             'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'boutique', 'employé', 'nom_client', 'info_additionnelle',
-             'compte_bancaire', 'arrivée_paiement_en_ligne', 'frais_paiement_en_ligne', 'url']
-          : ['payment', 'Date and time', 'transaction', 'type', 'gross_value', 
-             'VAT Rate', 'VAT Amount', 'VAT Category', 'shop', 'employee', 'customer_name', 'additional_info',
-             'bank_account', 'online_payment_arrival', 'online_payment_fee', 'url'];
-        
-        let csv = headers.join(',') + '\n';
-        
-        data.forEach(row => {
-          const escapeCSV = (str) => {
-            if (!str) return '';
-            const stringValue = String(str);
-            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-              return '"' + stringValue.replace(/"/g, '""') + '"';
-            }
-            return stringValue;
-          };
-          
-          const values = [
-            escapeCSV(row.payment),
-            escapeCSV(row['Heure et jour']),
-            escapeCSV(row.transaction),
-            escapeCSV(row.type),
-            escapeCSV(row.gross_value),
-            escapeCSV(row.vat_rate ? row.vat_rate + '%' : ''),
-            escapeCSV(row.vat_amount),
-            escapeCSV(translateCategory(row.vat_category)),
-            escapeCSV(row.shop),
-            escapeCSV(row.employee),
-            escapeCSV(row.customer_name),
-            escapeCSV(row.additional_info),
-            escapeCSV(row.bank_account),
-            escapeCSV(row.online_payment_arrival),
-            escapeCSV(row.online_payment_fee),
-            escapeCSV(row.url)
-          ];
-          csv += values.join(',') + '\n';
-        });
-        
-        const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const suffix = exportLanguage === 'fr' ? '_avec_TVA' : '_with_VAT';
-        const newFileName = fileName.replace('.csv', '') + suffix + '.csv';
-        link.download = newFileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      };
-
-      const downloadExcel = () => {
-        if (data.length === 0) return;
-
-        const headers = exportLanguage === 'fr'
-          ? ['paiement', 'Heure et jour', 'transaction', 'type', 'valeur_brute', 
-             'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'boutique', 'employé', 'nom_client', 
-             'info_additionnelle', 'compte_bancaire', 'arrivée_paiement_en_ligne', 'frais_paiement_en_ligne', 'url']
-          : ['payment', 'Date and time', 'transaction', 'type', 'gross_value', 
-             'VAT Rate', 'VAT Amount', 'VAT Category', 'shop', 'employee', 'customer_name', 
-             'additional_info', 'bank_account', 'online_payment_arrival', 'online_payment_fee', 'url'];
-        
-        const excelData = data.map(row => [
-          row.payment,
-          row['Heure et jour'],
-          row.transaction,
-          row.type,
-          parseFloat(row.gross_value) || 0,
-          row.vat_rate ? row.vat_rate + '%' : '',
-          parseFloat(row.vat_amount) || '',
-          translateCategory(row.vat_category) || '',
-          row.shop,
-          row.employee,
-          row.customer_name,
-          row.additional_info,
-          row.bank_account,
-          row.online_payment_arrival,
-          row.online_payment_fee,
-          row.url
-        ]);
-
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...excelData]);
-        
-        ws['!cols'] = [
-          { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 12 },
-          { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 15 },
-          { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
-        ];
-
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        
-        // Style pour l'en-tête
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-          const address = XLSX.utils.encode_col(C) + '1';
-          if (!ws[address]) continue;
-          ws[address].s = {
-            font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
-            fill: { patternType: "solid", fgColor: { rgb: "4F46E5" } },
-            alignment: { horizontal: "center", vertical: "center" },
-            border: {
-              top: { style: "thin", color: { rgb: "000000" } },
-              bottom: { style: "thin", color: { rgb: "000000" } },
-              left: { style: "thin", color: { rgb: "000000" } },
-              right: { style: "thin", color: { rgb: "000000" } }
-            }
-          };
-        }
-
-        // Style pour les lignes de données
-        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-          // Colonne Transaction (index 2)
-          const transactionCell = XLSX.utils.encode_cell({ r: R, c: 2 });
-          if (ws[transactionCell] && ws[transactionCell].v) {
-            const transaction = ws[transactionCell].v.toLowerCase();
-            let bgColor = "FFFFFF";
-            let textColor = "000000";
-            
-            if (transaction === 'appointment') {
-              bgColor = "D1FAE5";
-              textColor = "166534";
-            } else if (transaction === 'product_sale') {
-              bgColor = "DBEAFE";
-              textColor = "1E40AF";
-            }
-            
-            ws[transactionCell].s = {
-              fill: { patternType: "solid", fgColor: { rgb: bgColor } },
-              font: { color: { rgb: textColor }, bold: true },
-              alignment: { horizontal: "center", vertical: "center" },
-              border: {
-                top: { style: "thin", color: { rgb: "E5E7EB" } },
-                bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-                left: { style: "thin", color: { rgb: "E5E7EB" } },
-                right: { style: "thin", color: { rgb: "E5E7EB" } }
-              }
+                reader.readAsText(file);
             };
-          }
 
-          // Colonne VAT Category (index 7)
-          const categoryCell = XLSX.utils.encode_cell({ r: R, c: 7 });
-          if (ws[categoryCell] && ws[categoryCell].v) {
-            const category = ws[categoryCell].v;
-            let bgColor = "FFFFFF";
-            let textColor = "000000";
-            
-            if (category === 'Appointment' || category === 'Rendez-vous' || category === 'Package' || category === 'Forfait') {
-              bgColor = "D1FAE5";
-              textColor = "166534";
-            } else if (category === 'Gift Voucher' || category === 'Bon Cadeau') {
-              bgColor = "FEF3C7";
-              textColor = "854D0E";
-            } else if (category === 'Product' || category === 'Produit') {
-              bgColor = "DBEAFE";
-              textColor = "1E40AF";
-            } else if (category === specificProductCategoryName || category === translateCategory(specificProductCategoryName)) {
-              bgColor = "E0F2FE";
-              textColor = "0E7490";
-            }
-            
-            ws[categoryCell].s = {
-              fill: { patternType: "solid", fgColor: { rgb: bgColor } },
-              font: { color: { rgb: textColor }, bold: true },
-              alignment: { horizontal: "center", vertical: "center" },
-              border: {
-                top: { style: "thin", color: { rgb: "E5E7EB" } },
-                bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-                left: { style: "thin", color: { rgb: "E5E7EB" } },
-                right: { style: "thin", color: { rgb: "E5E7EB" } }
-              }
-            };
-          }
-
-          // Colonne VAT Rate (index 5)
-          const rateCell = XLSX.utils.encode_cell({ r: R, c: 5 });
-          if (ws[rateCell] && ws[rateCell].v) {
-            ws[rateCell].s = {
-              fill: { patternType: "solid", fgColor: { rgb: "E0E7FF" } },
-              font: { color: { rgb: "4F46E5" }, bold: true },
-              alignment: { horizontal: "center", vertical: "center" },
-              border: {
-                top: { style: "thin", color: { rgb: "E5E7EB" } },
-                bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-                left: { style: "thin", color: { rgb: "E5E7EB" } },
-                right: { style: "thin", color: { rgb: "E5E7EB" } }
-              }
-            };
-          }
-
-          // Formater les colonnes numériques
-          [4, 6].forEach(C => {
-            const address = XLSX.utils.encode_cell({ r: R, c: C });
-            if (!ws[address] || ws[address].v === '') return;
-            ws[address].t = 'n';
-            ws[address].z = '#,##0.00';
-            ws[address].s = {
-              alignment: { horizontal: "right", vertical: "center" },
-              border: {
-                top: { style: "thin", color: { rgb: "E5E7EB" } },
-                bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-                left: { style: "thin", color: { rgb: "E5E7EB" } },
-                right: { style: "thin", color: { rgb: "E5E7EB" } }
-              }
-            };
-          });
-        }
-
-        const wb = XLSX.utils.book_new();
-        const sheetName = exportLanguage === 'fr' ? 'Calculs TVA' : 'VAT Calculations';
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        
-        const suffix = exportLanguage === 'fr' ? '_avec_TVA' : '_with_VAT';
-        XLSX.writeFile(wb, fileName.replace('.csv', '') + suffix + '.xlsx', {
-          cellStyles: true,
-          bookType: 'xlsx'
-        });
-      };
-
-      const downloadPDF = () => {
-        if (data.length === 0) return;
-        window.print();
-      };
-
-      const getTableHeaders = () => {
-        if (exportLanguage === 'fr') {
-          return ['ID', 'Date', 'Transaction', 'Type', 'Valeur', 'Catégorie', 'Taux TVA', 'Montant TVA'];
-        }
-        return ['ID', 'Date', 'Transaction', 'Type', 'Value', 'Category', 'VAT Rate', 'VAT Amount'];
-      };
-
-      const formatCurrency = (value) => {
-        if (!value) return '-';
-        return parseFloat(value).toFixed(2) + ' €';
-      };
-
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-          <style>{`
-            @media print {
-              body { margin: 0; padding: 0; }
-              .no-print { display: none !important; }
-              .print-section { 
-                box-shadow: none !important; 
-                border-radius: 0 !important;
-              }
-              table { 
-                page-break-inside: auto;
-                border-collapse: collapse !important;
-              }
-              tr { 
-                page-break-inside: avoid; 
-                page-break-after: auto; 
-              }
-              thead { 
-                display: table-header-group;
-              }
-              th {
-                background-color: #4F46E5 !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              td, th {
-                border: 1px solid #E5E7EB !important;
-              }
-              .transaction-badge, .category-badge, .rate-badge {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                padding: 4px 8px !important;
-                border-radius: 4px !important;
-                font-weight: 600 !important;
-                display: inline-block !important;
-              }
-              .transaction-appointment {
-                background-color: #D1FAE5 !important;
-                color: #166534 !important;
-              }
-              .transaction-product {
-                background-color: #DBEAFE !important;
-                color: #1E40AF !important;
-              }
-              .category-appointment, .category-package {
-                background-color: #D1FAE5 !important;
-                color: #166534 !important;
-              }
-              .category-gift {
-                background-color: #FEF3C7 !important;
-                color: #854D0E !important;
-              }
-              .category-product {
-                background-color: #DBEAFE !important;
-                color: #1E40AF !important;
-              }
-              .category-specific {
-                background-color: #E0F2FE !important;
-                color: #0E7490 !important;
-              }
-              .rate-badge {
-                background-color: #E0E7FF !important;
-                color: #4F46E5 !important;
-              }
-            }
-          `}</style>
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-white rounded-lg shadow-lg p-8 mb-6 no-print">
-              <div className="flex items-center gap-3 mb-6">
-                <FileText className="w-8 h-8 text-indigo-600" />
-                <h1 className="text-3xl font-bold text-gray-800">VAT Calculator</h1>
-              </div>
-              
-              <p className="text-gray-600 mb-6">
-                Import your payment CSV file to automatically calculate VAT. <strong>VAT is only calculated for paid transactions.</strong>
-              </p>
-
-              <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-indigo-900">VAT Rates Configuration</h3>
-                  <button onClick={() => setShowKeywords(!showKeywords)} className="text-sm text-indigo-600 hover:text-indigo-800 underline">
-                    {showKeywords ? 'Hide' : 'Show'} Keywords
-                  </button>
-                </div>
+            const downloadCSV = () => {
+                if (data.length === 0) return;
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white rounded-lg p-4 border border-indigo-200">
-                    <label className="block text-sm font-semibold text-green-800 mb-3">📅 Appointments & Packages</label>
-                    <div className="flex gap-2 mb-3">
-                      <button onClick={() => setVatRateAppointment(5.5)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateAppointment === 5.5 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>5.5%</button>
-                      <button onClick={() => setVatRateAppointment(10)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateAppointment === 10 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>10%</button>
-                      <button onClick={() => setVatRateAppointment(20)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateAppointment === 20 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>20%</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-700">Custom:</span>
-                      <input type="number" min="0" max="100" step="0.1" value={vatRateAppointment} onChange={(e) => setVatRateAppointment(parseFloat(e.target.value) || 0)} className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"/>
-                      <span className="text-sm text-gray-700">%</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg p-4 border border-indigo-200">
-                    <label className="block text-sm font-semibold text-blue-800 mb-3">🛍️ Physical Products</label>
-                    <p className="text-xs text-gray-700 mb-2 font-medium">Generic rate:</p>
-                    <div className="flex gap-2 mb-2">
-                      <button onClick={() => setVatRateProduct(5.5)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateProduct === 5.5 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>5.5%</button>
-                      <button onClick={() => setVatRateProduct(10)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateProduct === 10 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>10%</button>
-                      <button onClick={() => setVatRateProduct(20)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateProduct === 20 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>20%</button>
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm text-gray-700">Custom:</span>
-                      <input type="number" min="0" max="100" step="0.1" value={vatRateProduct} onChange={(e) => setVatRateProduct(parseFloat(e.target.value) || 0)} className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"/>
-                      <span className="text-sm text-gray-700">%</span>
-                    </div>
+                const headers = exportLanguage === 'fr' 
+                    ? ['paiement', 'Heure et jour', 'transaction', 'type', 'valeur_brute', 
+                       'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'boutique', 'employé', 'nom_client', 'info_additionnelle',
+                       'compte_bancaire', 'arrivée_paiement_en_ligne', 'frais_paiement_en_ligne', 'url']
+                    : ['payment', 'Date and time', 'transaction', 'type', 'gross_value', 
+                       'VAT Rate', 'VAT Amount', 'VAT Category', 'shop', 'employee', 'customer_name', 'additional_info',
+                       'bank_account', 'online_payment_arrival', 'online_payment_fee', 'url'];
+                
+                let csv = headers.join(',') + '\n';
+                
+                data.forEach(row => {
+                    const escapeCSV = (str) => {
+                        if (!str) return '';
+                        const stringValue = String(str);
+                        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                            return '"' + stringValue.replace(/"/g, '""') + '"';
+                        }
+                        return stringValue;
+                    };
                     
-                    <div className="border-t border-gray-200 pt-3 mt-3">
-                      <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                        <input type="checkbox" checked={enableSpecificProductRate} onChange={(e) => setEnableSpecificProductRate(e.target.checked)} className="w-4 h-4"/>
-                        <span className="text-xs font-medium text-gray-700">Enable specific rate</span>
-                      </label>
+                    const values = [
+                        escapeCSV(row.payment),
+                        escapeCSV(row['Heure et jour'] || row['datetime'] || row['Date and time'] || row['date_and_time']),
+                        escapeCSV(row.transaction),
+                        escapeCSV(row.type),
+                        escapeCSV(row.gross_value),
+                        escapeCSV(row.vat_rate ? row.vat_rate + '%' : ''),
+                        escapeCSV(row.vat_amount),
+                        escapeCSV(translateCategory(row.vat_category)),
+                        escapeCSV(row.shop),
+                        escapeCSV(row.employee),
+                        escapeCSV(row.customer_name),
+                        escapeCSV(row.additional_info),
+                        escapeCSV(row.bank_account),
+                        escapeCSV(row.online_payment_arrival),
+                        escapeCSV(row.online_payment_fee),
+                        escapeCSV(row.url)
+                    ];
+                    csv += values.join(',') + '\n';
+                });
+                
+                const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                const suffix = exportLanguage === 'fr' ? '_avec_TVA' : '_with_VAT';
+                const newFileName = fileName.replace('.csv', '') + suffix + '.csv';
+                link.download = newFileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            };
 
-                      {enableSpecificProductRate && (
-                        <div className="ml-6 space-y-2">
-                          <input type="text" value={specificProductCategoryName} onChange={(e) => setSpecificProductCategoryName(e.target.value)} placeholder="Category name" className="w-full px-2 py-1 text-xs border rounded"/>
-                          
-                          <div className="flex gap-2">
-                            <button onClick={() => setVatRateProductSpecific(0)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 0 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>0%</button>
-                            <button onClick={() => setVatRateProductSpecific(5.5)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 5.5 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>5.5%</button>
-                            <button onClick={() => setVatRateProductSpecific(10)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 10 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>10%</button>
-                            <button onClick={() => setVatRateProductSpecific(20)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 20 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>20%</button>
-                          </div>
-                          
-                          <input type="number" min="0" max="100" step="0.1" value={vatRateProductSpecific} onChange={(e) => setVatRateProductSpecific(parseFloat(e.target.value) || 0)} placeholder="Custom" className="w-20 px-2 py-1 text-xs border rounded"/>
-                          
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Product names:</label>
-                            <textarea value={specificProductKeywords} onChange={(e) => setSpecificProductKeywords(e.target.value)} rows="3" placeholder="Enter exact product names separated by commas. Example: Omega 3 Capsules, Vitamin D3 1000 IU, Collagen Powder" className="w-full px-2 py-1 text-xs border rounded"/>
-                            <p className="text-xs text-gray-500 mt-1">List the exact product names (as they appear in your file) that should use the specific rate</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+            const downloadExcel = () => {
+                if (data.length === 0) return;
 
-                  <div className="bg-white rounded-lg p-4 border border-indigo-200">
-                    <label className="block text-sm font-semibold text-purple-800 mb-3">🎁 Gift Vouchers</label>
-                    <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
-                      <p className="text-xs text-yellow-800">
-                        <strong>⚠️ Important: Check with the client when VAT should be declared:</strong>
-                        <br/>• <strong>At voucher purchase</strong> → Set appropriate rate
-                        <br/>• <strong>At voucher use</strong> → Keep at 0% (VAT will be declared when used)
-                      </p>
-                    </div>
-                    <div className="flex gap-2 mb-3">
-                      <button onClick={() => setVatRateGiftVoucher(0)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 0 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>0%</button>
-                      <button onClick={() => setVatRateGiftVoucher(5.5)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 5.5 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>5.5%</button>
-                      <button onClick={() => setVatRateGiftVoucher(10)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 10 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>10%</button>
-                      <button onClick={() => setVatRateGiftVoucher(20)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 20 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>20%</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-700">Custom:</span>
-                      <input type="number" min="0" max="100" step="0.1" value={vatRateGiftVoucher} onChange={(e) => setVatRateGiftVoucher(parseFloat(e.target.value) || 0)} className="w-20 px-2 py-1 text-sm border rounded"/>
-                      <span className="text-sm">%</span>
-                    </div>
-                  </div>
-                </div>
+                const headers = exportLanguage === 'fr'
+                    ? ['paiement', 'Heure et jour', 'transaction', 'type', 'valeur_brute', 
+                       'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'boutique', 'employé', 'nom_client', 
+                       'info_additionnelle', 'compte_bancaire', 'arrivée_paiement_en_ligne', 'frais_paiement_en_ligne', 'url']
+                    : ['payment', 'Date and time', 'transaction', 'type', 'gross_value', 
+                       'VAT Rate', 'VAT Amount', 'VAT Category', 'shop', 'employee', 'customer_name', 
+                       'additional_info', 'bank_account', 'online_payment_arrival', 'online_payment_fee', 'url'];
+                
+                const excelData = data.map(row => [
+                    row.payment,
+                    row['Heure et jour'] || row['datetime'] || row['Date and time'] || row['date_and_time'],
+                    row.transaction,
+                    row.type,
+                    parseFloat(row.gross_value) || 0,
+                    row.vat_rate ? row.vat_rate + '%' : '',
+                    parseFloat(row.vat_amount) || '',
+                    translateCategory(row.vat_category) || '',
+                    row.shop,
+                    row.employee,
+                    row.customer_name,
+                    row.additional_info,
+                    row.bank_account,
+                    row.online_payment_arrival,
+                    row.online_payment_fee,
+                    row.url
+                ]);
 
-                {showKeywords && (
-                  <div className="mt-4 pt-4 border-t border-indigo-200 space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Package keywords:</label>
-                      <input type="text" value={packageKeywords} onChange={(e) => setPackageKeywords(e.target.value)} className="w-full px-3 py-2 text-sm border rounded"/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Gift voucher keywords:</label>
-                      <input type="text" value={giftVoucherKeywords} onChange={(e) => setGiftVoucherKeywords(e.target.value)} className="w-full px-3 py-2 text-sm border rounded"/>
-                    </div>
-                  </div>
-                )}
-              </div>
+                const ws = XLSX.utils.aoa_to_sheet([headers, ...excelData]);
+                
+                ws['!cols'] = [
+                    { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 12 },
+                    { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 15 },
+                    { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
+                ];
 
-              <div className="flex flex-wrap gap-3 mb-6">
-                <label className="flex-1 min-w-[200px] cursor-pointer">
-                  <div className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg">
-                    <Upload className="w-5 h-5" />
-                    <span>Load CSV File</span>
-                  </div>
-                  <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden"/>
-                </label>
+                const wb = XLSX.utils.book_new();
+                const sheetName = exportLanguage === 'fr' ? 'Calculs TVA' : 'VAT Calculations';
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                
+                const suffix = exportLanguage === 'fr' ? '_avec_TVA' : '_with_VAT';
+                XLSX.writeFile(wb, fileName.replace('.csv', '') + suffix + '.xlsx');
+            };
 
-                {data.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
-                      <span className="text-sm font-medium">Export:</span>
-                      <button onClick={() => setExportLanguage('en')} className={`px-3 py-1 rounded text-sm ${exportLanguage === 'en' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>🇬🇧 EN</button>
-                      <button onClick={() => setExportLanguage('fr')} className={`px-3 py-1 rounded text-sm ${exportLanguage === 'fr' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>🇫🇷 FR</button>
-                    </div>
+            const downloadPDF = () => {
+                if (data.length === 0) return;
+                window.print();
+            };
 
-                    <button onClick={downloadCSV} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg">
-                      <FileText className="w-5 h-5" />
-                      <span>CSV</span>
-                    </button>
+            const getTableHeaders = () => {
+                if (exportLanguage === 'fr') {
+                    return ['ID', 'Date', 'Transaction', 'Type', 'Valeur', 'Catégorie', 'Taux TVA', 'Montant TVA'];
+                }
+                return ['ID', 'Date', 'Transaction', 'Type', 'Value', 'Category', 'VAT Rate', 'VAT Amount'];
+            };
 
-                    <button onClick={downloadExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg">
-                      <FileSpreadsheet className="w-5 h-5" />
-                      <span>Excel</span>
-                    </button>
+            const formatCurrency = (value) => {
+                if (!value && value !== 0) return '-';
+                return parseFloat(value).toFixed(2) + ' €';
+            };
 
-                    <button onClick={downloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg">
-                      <FileType className="w-5 h-5" />
-                      <span>Print</span>
-                    </button>
-                  </>
-                )}
-              </div>
+            const calculateSummary = () => {
+                const summary = {
+                    total: { ht: 0, tva: 0, ttc: 0 },
+                    appointments: { ht: 0, tva: 0, ttc: 0 },
+                    packages: { ht: 0, tva: 0, ttc: 0 },
+                    products: { ht: 0, tva: 0, ttc: 0 },
+                    specificProducts: { ht: 0, tva: 0, ttc: 0 },
+                    giftVouchers: { ht: 0, tva: 0, ttc: 0 }
+                };
 
-              {fileName && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <p className="text-blue-800"><strong>File loaded:</strong> {fileName} {data.length > 0 && `(${data.length} rows)`}</p>
-                </div>
-              )}
+                data.forEach(row => {
+                    if (row.vat_amount && row.vat_rate !== '') {
+                        const ttc = parseFloat(row.gross_value) || 0;
+                        const tva = parseFloat(row.vat_amount) || 0;
+                        const ht = ttc - tva;
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                  <p className="text-red-800">{error}</p>
-                </div>
-              )}
-            </div>
+                        summary.total.ttc += ttc;
+                        summary.total.tva += tva;
+                        summary.total.ht += ht;
 
-            {data.length > 0 && (
-              <div className="bg-white rounded-lg shadow-lg overflow-hidden print-section">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-indigo-600 text-white">
-                      <tr>
-                        {getTableHeaders().map((header, idx) => (
-                          <th key={idx} className={`px-4 py-3 text-sm ${idx >= 4 ? 'text-right' : 'text-left'} ${idx === 5 || idx === 6 ? 'text-center' : ''}`}>
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.map((row, i) => (
-                        <tr key={i} className={`border-b ${i % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-indigo-50`}>
-                          <td className="px-4 py-3 text-sm">{row.payment}</td>
-                          <td className="px-4 py-3 text-sm">{row['Heure et jour']}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`transaction-badge px-2 py-1 rounded text-xs ${
-                              row.transaction === 'appointment' ? 'transaction-appointment bg-green-100 text-green-800' : 
-                              row.transaction === 'product_sale' ? 'transaction-product bg-blue-100 text-blue-800' : 
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {row.transaction}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">{row.type}</td>
-                          <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(row.gross_value)}</td>
-                          <td className="px-4 py-3 text-sm text-center">
-                            {row.vat_category && (
-                              <span className={`category-badge px-2 py-1 rounded text-xs font-semibold ${
-                                row.vat_category === 'Appointment' || row.vat_category === 'Package' ? 'category-appointment category-package bg-green-100 text-green-800' : 
-                                row.vat_category === 'Product' ? 'category-product bg-blue-100 text-blue-800' : 
-                                row.vat_category === specificProductCategoryName ? 'category-specific bg-cyan-100 text-cyan-800' : 
-                                'category-gift bg-purple-100 text-purple-800'
-                              }`}>
-                                {translateCategory(row.vat_category)}
-                              </span>
+                        if (row.vat_category === 'Appointment') {
+                            summary.appointments.ttc += ttc;
+                            summary.appointments.tva += tva;
+                            summary.appointments.ht += ht;
+                        } else if (row.vat_category === 'Package') {
+                            summary.packages.ttc += ttc;
+                            summary.packages.tva += tva;
+                            summary.packages.ht += ht;
+                        } else if (row.vat_category === 'Product') {
+                            summary.products.ttc += ttc;
+                            summary.products.tva += tva;
+                            summary.products.ht += ht;
+                        } else if (row.vat_category === specificProductCategoryName) {
+                            summary.specificProducts.ttc += ttc;
+                            summary.specificProducts.tva += tva;
+                            summary.specificProducts.ht += ht;
+                        } else if (row.vat_category === 'Gift Voucher') {
+                            summary.giftVouchers.ttc += ttc;
+                            summary.giftVouchers.tva += tva;
+                            summary.giftVouchers.ht += ht;
+                        }
+                    }
+                });
+
+                return summary;
+            };
+
+            const summary = data.length > 0 ? calculateSummary() : null;
+            const translate = (key) => {
+                if (exportLanguage === 'fr') {
+                    return {
+                        'Total Period': 'Total Période',
+                        'Appointments': 'Rendez-vous',
+                        'Packages': 'Forfaits',
+                        'Products': 'Produits',
+                        'Gift Vouchers': 'Bons Cadeaux',
+                        'Excl. VAT': 'HT',
+                        'VAT': 'TVA',
+                        'Incl. VAT': 'TTC'
+                    }[key] || key;
+                }
+                return key;
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-8 mb-6 no-print">
+                            <div className="flex items-center gap-3 mb-6">
+                                <FileText />
+                                <h1 className="text-3xl font-bold text-gray-800">VAT Calculator</h1>
+                            </div>
+                            
+                            <p className="text-gray-600 mb-6">
+                                Import your payment CSV file to automatically calculate VAT. <strong>VAT is only calculated for paid transactions.</strong>
+                            </p>
+
+                            <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold text-indigo-900">VAT Rates Configuration</h3>
+                                    <button onClick={() => setShowKeywords(!showKeywords)} className="text-sm text-indigo-600 hover:text-indigo-800 underline">
+                                        {showKeywords ? 'Hide' : 'Show'} Keywords
+                                    </button>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-white rounded-lg p-4 border border-indigo-200">
+                                        <label className="block text-sm font-semibold text-green-800 mb-3">📅 Appointments & Packages</label>
+                                        <div className="flex gap-2 mb-3">
+                                            <button onClick={() => setVatRateAppointment(5.5)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateAppointment === 5.5 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>5.5%</button>
+                                            <button onClick={() => setVatRateAppointment(10)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateAppointment === 10 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>10%</button>
+                                            <button onClick={() => setVatRateAppointment(20)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateAppointment === 20 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>20%</button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-gray-700">Custom:</span>
+                                            <input type="number" min="0" max="100" step="0.1" value={vatRateAppointment} onChange={(e) => setVatRateAppointment(parseFloat(e.target.value) || 0)} className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"/>
+                                            <span className="text-sm text-gray-700">%</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg p-4 border border-indigo-200">
+                                        <label className="block text-sm font-semibold text-blue-800 mb-3">🛍️ Physical Products</label>
+                                        <p className="text-xs text-gray-700 mb-2 font-medium">Generic rate:</p>
+                                        <div className="flex gap-2 mb-2">
+                                            <button onClick={() => setVatRateProduct(5.5)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateProduct === 5.5 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>5.5%</button>
+                                            <button onClick={() => setVatRateProduct(10)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateProduct === 10 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>10%</button>
+                                            <button onClick={() => setVatRateProduct(20)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateProduct === 20 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>20%</button>
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-sm text-gray-700">Custom:</span>
+                                            <input type="number" min="0" max="100" step="0.1" value={vatRateProduct} onChange={(e) => setVatRateProduct(parseFloat(e.target.value) || 0)} className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"/>
+                                            <span className="text-sm text-gray-700">%</span>
+                                        </div>
+                                        
+                                        <div className="border-t border-gray-200 pt-3 mt-3">
+                                            <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                                                <input type="checkbox" checked={enableSpecificProductRate} onChange={(e) => setEnableSpecificProductRate(e.target.checked)} className="w-4 h-4"/>
+                                                <span className="text-xs font-medium text-gray-700">Enable specific rate</span>
+                                            </label>
+
+                                            {enableSpecificProductRate && (
+                                                <div className="ml-6 space-y-2">
+                                                    <input type="text" value={specificProductCategoryName} onChange={(e) => setSpecificProductCategoryName(e.target.value)} placeholder="Category name" className="w-full px-2 py-1 text-xs border rounded"/>
+                                                    
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => setVatRateProductSpecific(0)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 0 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>0%</button>
+                                                        <button onClick={() => setVatRateProductSpecific(5.5)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 5.5 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>5.5%</button>
+                                                        <button onClick={() => setVatRateProductSpecific(10)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 10 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>10%</button>
+                                                        <button onClick={() => setVatRateProductSpecific(20)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 20 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>20%</button>
+                                                    </div>
+                                                    
+                                                    <input type="number" min="0" max="100" step="0.1" value={vatRateProductSpecific} onChange={(e) => setVatRateProductSpecific(parseFloat(e.target.value) || 0)} placeholder="Custom" className="w-20 px-2 py-1 text-xs border rounded"/>
+                                                    
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-gray-700 mb-1">Product names:</label>
+                                                        <textarea value={specificProductKeywords} onChange={(e) => setSpecificProductKeywords(e.target.value)} rows="3" placeholder="Enter exact product names separated by commas" className="w-full px-2 py-1 text-xs border rounded"/>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg p-4 border border-indigo-200">
+                                        <label className="block text-sm font-semibold text-purple-800 mb-3">🎁 Gift Vouchers</label>
+                                        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
+                                            <p className="text-xs text-yellow-800">
+                                                <strong>⚠️ Important:</strong> Check when VAT should be declared
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2 mb-3">
+                                            <button onClick={() => setVatRateGiftVoucher(0)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 0 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>0%</button>
+                                            <button onClick={() => setVatRateGiftVoucher(5.5)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 5.5 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>5.5%</button>
+                                            <button onClick={() => setVatRateGiftVoucher(10)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 10 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>10%</button>
+                                            <button onClick={() => setVatRateGiftVoucher(20)} className={`px-3 py-2 rounded-lg text-sm font-medium ${vatRateGiftVoucher === 20 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>20%</button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-gray-700">Custom:</span>
+                                            <input type="number" min="0" max="100" step="0.1" value={vatRateGiftVoucher} onChange={(e) => setVatRateGiftVoucher(parseFloat(e.target.value) || 0)} className="w-20 px-2 py-1 text-sm border rounded"/>
+                                            <span className="text-sm">%</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {showKeywords && (
+                                    <div className="mt-4 pt-4 border-t border-indigo-200 space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Package keywords:</label>
+                                            <input type="text" value={packageKeywords} onChange={(e) => setPackageKeywords(e.target.value)} className="w-full px-3 py-2 text-sm border rounded"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Gift voucher keywords:</label>
+                                            <input type="text" value={giftVoucherKeywords} onChange={(e) => setGiftVoucherKeywords(e.target.value)} className="w-full px-3 py-2 text-sm border rounded"/>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-3 mb-6">
+                                <label className="flex-1 min-w-[200px] cursor-pointer">
+                                    <div className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg">
+                                        <Upload />
+                                        <span>Load CSV File</span>
+                                    </div>
+                                    <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden"/>
+                                </label>
+
+                                {data.length > 0 && (
+                                    <>
+                                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+                                            <span className="text-sm font-medium">Export:</span>
+                                            <button onClick={() => setExportLanguage('en')} className={`px-3 py-1 rounded text-sm ${exportLanguage === 'en' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>🇬🇧 EN</button>
+                                            <button onClick={() => setExportLanguage('fr')} className={`px-3 py-1 rounded text-sm ${exportLanguage === 'fr' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>🇫🇷 FR</button>
+                                        </div>
+
+                                        <button onClick={downloadCSV} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg">
+                                            <FileText />
+                                            <span>CSV</span>
+                                        </button>
+
+                                        <button onClick={downloadExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg">
+                                            <FileSpreadsheet />
+                                            <span>Excel</span>
+                                        </button>
+
+                                        <button onClick={downloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg">
+                                            <FileType />
+                                            <span>Print</span>
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+
+                            {fileName && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                    <p className="text-blue-800"><strong>File loaded:</strong> {fileName} {data.length > 0 && `(${data.length} rows)`}</p>
+                                </div>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center">
-                            {row.vat_rate !== '' && <span className="rate-badge px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">{row.vat_rate}%</span>}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right font-bold text-indigo-600">{row.vat_amount ? formatCurrency(row.vat_amount) : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
 
-    ReactDOM.render(<VATCalculator />, document.getElementById('root'));
-  </script>
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                                    <p className="text-red-800">{error}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {data.length > 0 && summary && (
+                            <>
+                                <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-4">📊 {exportLanguage === 'fr' ? 'Récapitulatif TVA' : 'VAT Summary'}</h2>
+                                    
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-indigo-600 text-white">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left">Catégorie</th>
+                                                    <th className="px-4 py-3 text-right">{translate('Excl. VAT')}</th>
+                                                    <th className="px-4 py-3 text-right">{translate('VAT')}</th>
+                                                    <th className="px-4 py-3 text-right">{translate('Incl. VAT')}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr className="bg-indigo-50 border-b-2 border-indigo-600">
+                                                    <td className="px-4 py-3 font-bold text-indigo-900">{translate('Total Period')}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.ht)}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.tva)}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.ttc)}</td>
+                                                </tr>
+                                                
+                                                {summary.appointments.ttc > 0 && (
+                                                    <tr className="bg-green-50 hover:bg-green-100">
+                                                        <td className="px-4 py-3 text-green-800">📅 {translate('Appointments')}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.appointments.ht)}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.appointments.tva)}</td>
+                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.appointments.ttc)}</td>
+                                                    </tr>
+                                                )}
+                                                
+                                                {summary.packages.ttc > 0 && (
+                                                    <tr className="bg-green-50 hover:bg-green-100">
+                                                        <td className="px-4 py-3 text-green-800">📦 {translate('Packages')}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.packages.ht)}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.packages.tva)}</td>
+                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.packages.ttc)}</td>
+                                                    </tr>
+                                                )}
+                                                
+                                                {summary.products.ttc > 0 && (
+                                                    <tr className="bg-blue-50 hover:bg-blue-100">
+                                                        <td className="px-4 py-3 text-blue-800">🛍️ {translate('Products')}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.products.ht)}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.products.tva)}</td>
+                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.products.ttc)}</td>
+                                                    </tr>
+                                                )}
+                                                
+                                                {enableSpecificProductRate && summary.specificProducts.ttc > 0 && (
+                                                    <tr className="bg-cyan-50 hover:bg-cyan-100">
+                                                        <td className="px-4 py-3 text-cyan-800">🛍️ {specificProductCategoryName}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.specificProducts.ht)}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.specificProducts.tva)}</td>
+                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.specificProducts.ttc)}</td>
+                                                    </tr>
+                                                )}
+                                                
+                                                {summary.giftVouchers.ttc > 0 && (
+                                                    <tr className="bg-purple-50 hover:bg-purple-100">
+                                                        <td className="px-4 py-3 text-purple-800">🎁 {translate('Gift Vouchers')}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.giftVouchers.ht)}</td>
+                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.giftVouchers.tva)}</td>
+                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.giftVouchers.ttc)}</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-lg overflow-hidden print-section">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-indigo-600 text-white">
+                                                <tr>
+                                                    {getTableHeaders().map((header, idx) => (
+                                                        <th key={idx} className={`px-4 py-3 text-sm ${idx >= 4 ? 'text-right' : 'text-left'} ${idx === 5 || idx === 6 ? 'text-center' : ''}`}>
+                                                            {header}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {data.map((row, i) => (
+                                                    <tr key={i} className={`border-b ${i % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-indigo-50`}>
+                                                        <td className="px-4 py-3 text-sm">{row.payment}</td>
+                                                        <td className="px-4 py-3 text-sm">{row['Heure et jour'] || row['datetime'] || row['Date and time'] || row['date_and_time'] || '-'}</td>
+                                                        <td className="px-4 py-3 text-sm">
+                                                            <span className={`px-2 py-1 rounded text-xs ${row.transaction === 'appointment' ? 'bg-green-100 text-green-800' : row.transaction === 'product_sale' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                {row.transaction}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm">{row.type}</td>
+                                                        <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(row.gross_value)}</td>
+                                                        <td className="px-4 py-3 text-sm text-center">
+                                                            {row.vat_category && (
+                                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                                    row.vat_category === 'Appointment' || row.vat_category === 'Package' ? 'bg-green-100 text-green-800' : 
+                                                                    row.vat_category === 'Product' ? 'bg-blue-100 text-blue-800' : 
+                                                                    row.vat_category === specificProductCategoryName ? 'bg-cyan-100 text-cyan-800' : 
+                                                                    'bg-purple-100 text-purple-800'
+                                                                }`}>
+                                                                    {translateCategory(row.vat_category)}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm text-center">
+                                                            {row.vat_rate !== '' && <span className="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">{row.vat_rate}%</span>}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm text-right font-bold text-indigo-600">{row.vat_amount ? formatCurrency(row.vat_amount) : '-'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<VATCalculator />, document.getElementById('root'));
+    </script>
 </body>
 </html>
