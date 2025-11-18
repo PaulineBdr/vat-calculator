@@ -127,13 +127,7 @@
               headers.forEach((header, index) => {
                 row[header] = values[index] || '';
               });
-               // Normaliser le champ date/time
-              if (row['Date and time']) {
-                row['Heure et jour'] = row['Date and time'];
-              } else if (row['date_and_time']) {
-                row['Heure et jour'] = row['date_and_time'];
-              }
-              
+                            
               const paymentId = row.payment;
               if (!paymentGroups[paymentId]) {
                 paymentGroups[paymentId] = [];
