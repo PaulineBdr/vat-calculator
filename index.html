@@ -163,6 +163,11 @@
                                        transaction.includes('cash') ||
                                        transaction.includes('card');
                             });
+                            // Check whether a gift voucher has been used for this payment.
+                            const hasGiftVoucherPayment = group.some(row => {
+                                const transaction = row.transaction?.toLowerCase() || '';
+                                return transaction === 'gift_voucher_applied';
+                            });
                             
                             group.forEach(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
@@ -170,10 +175,19 @@
                                 const grossValue = parseFloat(row.gross_value) || 0;
                                 
                                 if (hasPayment && grossValue > 0) {
-                                    if (transaction === 'appointment') {
+                                   if (transaction === 'appointment') {
+                                    // If a gift voucher is used AND VAT was applied to the purchase of the gift voucher
+                                    if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
+                                        // Do not apply VAT to avoid double taxation
+                                        row.vat_amount = '0.00';
+                                        row.vat_rate = 0;
+                                        row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                    } else {
+                                        // Apply VAT as normal
                                         row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
                                         row.vat_rate = vatRateAppointment;
                                         row.vat_category = 'Appointment';
+                                    }
                                     } else if (transaction === 'product_sale') {
                                         const isPackage = packageKw.some(keyword => type.includes(keyword));
                                         
