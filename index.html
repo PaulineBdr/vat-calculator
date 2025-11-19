@@ -386,6 +386,10 @@
                             summary.appointments.ttc += ttc;
                             summary.appointments.tva += tva;
                             summary.appointments.ht += ht;
+                        } else if (row.vat_category === 'Appointment (Paid by Gift Voucher)') {
+                            summary.appointmentsGiftVoucher.ttc += ttc;
+                            summary.appointmentsGiftVoucher.tva += tva;
+                            summary.appointmentsGiftVoucher.ht += ht;
                         } else if (row.vat_category === 'Package') {
                             summary.packages.ttc += ttc;
                             summary.packages.tva += tva;
