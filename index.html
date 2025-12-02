@@ -201,6 +201,15 @@
                                             const giftVoucherPart = proportion * giftVoucherAmount;
                                             // Amount to tax = total - gift voucher part (VAT already paid on gift voucher)
                                             amountToTax = grossValue - giftVoucherPart;
+                                            console.log('=== DEBUG ===');
+                                            console.log('Service:', type);
+                                            console.log('Total appointments:', totalAppointments);
+                                            console.log('Gift voucher amount:', giftVoucherAmount);
+                                            console.log('This service TTC:', grossValue);
+                                            console.log('Proportion:', proportion);
+                                            console.log('Gift voucher part:', giftVoucherPart);
+                                            console.log('Amount to tax:', amountToTax);
+                                            console.log('vatRateGiftVoucher:', vatRateGiftVoucher);
                                         }
                                         
                                         // Apply VAT on the taxable amount
