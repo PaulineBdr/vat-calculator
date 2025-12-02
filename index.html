@@ -185,7 +185,7 @@
                                         row.vat_category = 'Appointment (Paid by Gift Voucher)';
                                     } else {
                                         // Apply VAT as normal
-                                        row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
+                                        row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                         row.vat_rate = vatRateAppointment;
                                         row.vat_category = 'Appointment';
                                     }
@@ -193,25 +193,25 @@
                                         const isPackage = packageKw.some(keyword => type.includes(keyword));
                                         
                                         if (isPackage) {
-                                            row.vat_amount = (grossValue * (vatRateAppointment / 100)).toFixed(2);
+                                            row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                             row.vat_rate = vatRateAppointment;
                                             row.vat_category = 'Package';
                                         } else {
                                             const isGiftVoucher = giftKw.some(keyword => type.includes(keyword));
                                             
                                             if (isGiftVoucher) {
-                                                row.vat_amount = (grossValue * (vatRateGiftVoucher / 100)).toFixed(2);
+                                                row.vat_amount = (grossValue * (vatRateGiftVoucher / (100 + vatRateGiftVoucher))).toFixed(2);
                                                 row.vat_rate = vatRateGiftVoucher;
                                                 row.vat_category = 'Gift Voucher';
                                             } else {
                                                 const isSpecificProduct = enableSpecificProductRate && specificProdKw.some(keyword => type.includes(keyword));
                                                 
                                                 if (isSpecificProduct) {
-                                                    row.vat_amount = (grossValue * (vatRateProductSpecific / 100)).toFixed(2);
+                                                    row.vat_amount = (grossValue * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
                                                     row.vat_rate = vatRateProductSpecific;
                                                     row.vat_category = specificProductCategoryName;
                                                 } else {
-                                                    row.vat_amount = (grossValue * (vatRateProduct / 100)).toFixed(2);
+                                                    row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
                                                     row.vat_rate = vatRateProduct;
                                                     row.vat_category = 'Product';
                                                 }
