@@ -192,8 +192,8 @@
                                 
                                 if (hasPayment && grossValue > 0) {
                                     if (transaction === 'appointment') {
-                                    // Calculate proportional gift voucher allocation
-                                    let amountToTax = grossValue;
+                                        // Calculate proportional gift voucher allocation
+                                        let amountToTax = grossValue;
                                     
                                     if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0) {
                                         // Calculate proportion of this appointment
