@@ -213,7 +213,9 @@
                                         }
                                         
                                         // Apply VAT on the taxable amount
-                                        row.vat_amount = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
+                                        const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
+                                        row.vat_amount = calculatedVAT;
+                                        row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`; // Pour voir le montant taxé
                                         row.vat_rate = vatRateAppointment;
                                         
                                         if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && amountToTax < grossValue) {
