@@ -181,7 +181,7 @@
                                 if (transaction === 'appointment' && grossValue > 0) {
                                     totalAppointments += grossValue;
                                 }
-                                if (transaction === 'gift_voucher_applied') {
+                                if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
                                     giftVoucherAmount += Math.abs(grossValue);
                                 }
                             });
