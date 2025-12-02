@@ -83,6 +83,7 @@
                     const translations = {
                         'Appointment': 'Rendez-vous',
                         'Appointment (Paid by Gift Voucher)': 'Rendez-vous (Payé par Bon Cadeau)',
+                        'Appointment (Partial Gift Voucher)': 'Rendez-vous (Bon Cadeau Partiel)',  // AJOUTER CETTE LIGNE
                         'Package': 'Forfait',
                         'Product': 'Produit',
                         'Gift Voucher': 'Bon Cadeau'
@@ -169,26 +170,50 @@
                                 const transaction = row.transaction?.toLowerCase() || '';
                                 return transaction === 'gift_voucher_applied';
                             });
+                            // Calculate totals for proportional gift voucher allocation
+                            let totalAppointments = 0;
+                            let giftVoucherAmount = 0;
                             
+                            group.forEach(row => {
+                                const transaction = row.transaction?.toLowerCase() || '';
+                                const grossValue = parseFloat(row.gross_value) || 0;
+                                
+                                if (transaction === 'appointment' && grossValue > 0) {
+                                    totalAppointments += grossValue;
+                                }
+                                if (transaction === 'gift_voucher_applied') {
+                                    giftVoucherAmount += Math.abs(grossValue);
+                                }
+                            });
                             group.forEach(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
                                 const type = row.type?.toLowerCase() || '';
                                 const grossValue = parseFloat(row.gross_value) || 0;
                                 
                                 if (hasPayment && grossValue > 0) {
-                                   if (transaction === 'appointment') {
-                                    // If a gift voucher is used AND VAT was applied to the purchase of the gift voucher
-                                    if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
-                                        // Do not apply VAT to avoid double taxation
-                                        row.vat_amount = '0.00';
-                                        row.vat_rate = 0;
-                                        row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                    if (transaction === 'appointment') {
+                                    // Calculate proportional gift voucher allocation
+                                    let amountToTax = grossValue;
+                                    
+                                    if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0) {
+                                        // Calculate proportion of this appointment
+                                        const proportion = grossValue / totalAppointments;
+                                        const giftVoucherPart = proportion * giftVoucherAmount;
+                                        // Amount to tax = total - gift voucher part (VAT already paid on gift voucher)
+                                        amountToTax = grossValue - giftVoucherPart;
+                                    }
+                                    
+                                    // Apply VAT on the taxable amount
+                                    row.vat_amount = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
+                                    row.vat_rate = vatRateAppointment;
+                                    
+                                    if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && amountToTax < grossValue) {
+                                        row.vat_category = 'Appointment (Partial Gift Voucher)';
                                     } else {
-                                        // Apply VAT as normal
-                                        row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                        row.vat_rate = vatRateAppointment;
                                         row.vat_category = 'Appointment';
                                     }
+                                }
+                            
                                     } else if (transaction === 'product_sale') {
                                         const isPackage = packageKw.some(keyword => type.includes(keyword));
                                         
