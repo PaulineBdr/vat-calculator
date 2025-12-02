@@ -168,7 +168,7 @@
                             // Check whether a gift voucher has been used for this payment.
                             const hasGiftVoucherPayment = group.some(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
-                                return transaction === 'gift_voucher_applied';
+                                return transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied';
                             });
                             // Calculate totals for proportional gift voucher allocation
                             let totalAppointments = 0;
