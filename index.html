@@ -400,52 +400,76 @@
                 const summary = {
                     total: { ht: 0, tva: 0, ttc: 0 },
                     appointments: { ht: 0, tva: 0, ttc: 0 },
-                    packages: { ht: 0, tva: 0, ttc: 0 },
                     appointmentsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    appointmentsOther: { ht: 0, tva: 0, ttc: 0 },
+                    packages: { ht: 0, tva: 0, ttc: 0 },
                     products: { ht: 0, tva: 0, ttc: 0 },
                     specificProducts: { ht: 0, tva: 0, ttc: 0 },
                     giftVouchers: { ht: 0, tva: 0, ttc: 0 }
                 };
 
-                data.forEach(row => {
-                    if (row.vat_amount && row.vat_rate !== '') {
-                        const ttc = parseFloat(row.gross_value) || 0;
-                        const tva = parseFloat(row.vat_amount) || 0;
-                        const ht = ttc - tva;
-
-                        summary.total.ttc += ttc;
-                        summary.total.tva += tva;
-                        summary.total.ht += ht;
-
-                        if (row.vat_category === 'Appointment') {
-                            summary.appointments.ttc += ttc;
-                            summary.appointments.tva += tva;
-                            summary.appointments.ht += ht;
-                        } else if (row.vat_category === 'Appointment (Paid by Gift Voucher)') {
-                            summary.appointmentsGiftVoucher.ttc += ttc;
-                            summary.appointmentsGiftVoucher.tva += tva;
-                            summary.appointmentsGiftVoucher.ht += ht;
-                        } else if (row.vat_category === 'Package') {
-                            summary.packages.ttc += ttc;
-                            summary.packages.tva += tva;
-                            summary.packages.ht += ht;
-                        } else if (row.vat_category === 'Product') {
-                            summary.products.ttc += ttc;
-                            summary.products.tva += tva;
-                            summary.products.ht += ht;
-                        } else if (row.vat_category === specificProductCategoryName) {
-                            summary.specificProducts.ttc += ttc;
-                            summary.specificProducts.tva += tva;
-                            summary.specificProducts.ht += ht;
-                        } else if (row.vat_category === 'Gift Voucher') {
-                            summary.giftVouchers.ttc += ttc;
-                            summary.giftVouchers.tva += tva;
-                            summary.giftVouchers.ht += ht;
+                   data.forEach(row => {
+                        if (row.vat_amount && row.vat_rate !== '') {
+                            const ttc = parseFloat(row.gross_value) || 0;
+                            const tva = parseFloat(row.vat_amount) || 0;
+                            const ht = ttc - tva;
+                
+                            summary.total.ttc += ttc;
+                            summary.total.tva += tva;
+                            summary.total.ht += ht;
+                
+                            if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                                summary.appointments.ttc += ttc;
+                                summary.appointments.tva += tva;
+                                summary.appointments.ht += ht;
+                                
+                                // Calculer la part payée par bon cadeau vs autre
+                                if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                                    // Extraire le montant taxé depuis le texte [taxé:XX.XX€]
+                                    const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                    if (match) {
+                                        const amountToTax = parseFloat(match[1]);
+                                        const giftVoucherPart = ttc - amountToTax;
+                                        const giftVoucherHT = giftVoucherPart - 0; // Pas de TVA sur la part bon cadeau
+                                        
+                                        // Part bon cadeau
+                                        summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
+                                        summary.appointmentsGiftVoucher.tva += 0;
+                                        summary.appointmentsGiftVoucher.ht += giftVoucherHT;
+                                        
+                                        // Part autre paiement
+                                        const otherPart = amountToTax;
+                                        summary.appointmentsOther.ttc += otherPart;
+                                        summary.appointmentsOther.tva += tva;
+                                        summary.appointmentsOther.ht += otherPart - tva;
+                                    }
+                                } else {
+                                    // Appointment normal (pas de bon cadeau)
+                                    summary.appointmentsOther.ttc += ttc;
+                                    summary.appointmentsOther.tva += tva;
+                                    summary.appointmentsOther.ht += ht;
+                                }
+                            } else if (row.vat_category === 'Package') {
+                                summary.packages.ttc += ttc;
+                                summary.packages.tva += tva;
+                                summary.packages.ht += ht;
+                            } else if (row.vat_category === 'Product') {
+                                summary.products.ttc += ttc;
+                                summary.products.tva += tva;
+                                summary.products.ht += ht;
+                            } else if (row.vat_category === specificProductCategoryName) {
+                                summary.specificProducts.ttc += ttc;
+                                summary.specificProducts.tva += tva;
+                                summary.specificProducts.ht += ht;
+                            } else if (row.vat_category === 'Gift Voucher') {
+                                summary.giftVouchers.ttc += ttc;
+                                summary.giftVouchers.tva += tva;
+                                summary.giftVouchers.ht += ht;
+                            }
                         }
-                    }
-                });
-
-                return summary;
+                    });
+                
+                    return summary;
             };
 
             const summary = data.length > 0 ? calculateSummary() : null;
@@ -654,13 +678,31 @@
                                                 </tr>
                                                 
                                                 {summary.appointments.ttc > 0 && (
-                                                    <tr className="bg-green-50 hover:bg-green-100">
-                                                        <td className="px-4 py-3 text-green-800">📅 {translate('Appointments')}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.appointments.ht)}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.appointments.tva)}</td>
-                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.appointments.ttc)}</td>
-                                                    </tr>
-                                                )}
+                                                        <>
+                                                            <tr className="bg-green-50 hover:bg-green-100 border-b border-green-200">
+                                                                <td className="px-4 py-3 text-green-800 font-bold">📅 {translate('Appointments')} (Total)</td>
+                                                                <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.appointments.ht)}</td>
+                                                                <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.appointments.tva)}</td>
+                                                                <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.appointments.ttc)}</td>
+                                                            </tr>
+                                                            {summary.appointmentsGiftVoucher.ttc > 0 && (
+                                                                <tr className="bg-green-50 hover:bg-green-100">
+                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ Paid by Gift Voucher</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsGiftVoucher.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsGiftVoucher.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsGiftVoucher.ttc)}</td>
+                                                                </tr>
+                                                            )}
+                                                            {summary.appointmentsOther.ttc > 0 && (
+                                                                <tr className="bg-green-50 hover:bg-green-100">
+                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ Paid by Other Methods</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsOther.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsOther.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsOther.ttc)}</td>
+                                                                </tr>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 
                                                 {summary.packages.ttc > 0 && (
                                                     <tr className="bg-green-50 hover:bg-green-100">
