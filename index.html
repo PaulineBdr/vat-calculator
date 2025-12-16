@@ -513,23 +513,36 @@
                         
                         const sheetData = [headers];
                         
-                        // Filtrer et afficher toutes les lignes qui ont un payment ID correspondant
+                        // Filtrer et afficher les lignes correspondantes
                         data.forEach(row => {
                             if (matchingPaymentIds.has(String(row.payment))) {
-                                sheetData.push([
-                                    row.payment || '-',
-                                    row['Heure et jour'] || row['datetime'] || '-',
-                                    row.transaction || '-',
-                                    row.type || '-',
-                                    row.gross_value ? parseFloat(row.gross_value).toFixed(2) + ' €' : '-',
-                                    row.vat_rate ? row.vat_rate + '%' : '-',
-                                    row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
-                                    translateCategory(row.vat_category) || '-',
-                                    row.shop || '-',
-                                    row.employee || '-',
-                                    row.customer_name || '-',
-                                    row.url || '-'
-                                ]);
+                                const transaction = (row.transaction || '').toLowerCase().trim();
+                                const grossValue = parseFloat(row.gross_value) || 0;
+                                
+                                // Garder si :
+                                // 1. C'est un appointment (service)
+                                // 2. C'est le type de paiement recherché
+                                // 3. C'est la ligne URL (pas de transaction, pas de gross_value, mais une URL)
+                                const isAppointment = transaction === 'appointment';
+                                const isMatchingPayment = grossValue < 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim());
+                                const isUrlLine = !transaction && !grossValue && row.url;
+                                
+                                if (isAppointment || isMatchingPayment || isUrlLine) {
+                                    sheetData.push([
+                                        row.payment || '-',
+                                        row['Heure et jour'] || row['datetime'] || '-',
+                                        row.transaction || '-',
+                                        row.type || '-',
+                                        row.gross_value ? parseFloat(row.gross_value).toFixed(2) + ' €' : '-',
+                                        row.vat_rate ? row.vat_rate + '%' : '-',
+                                        row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
+                                        translateCategory(row.vat_category) || '-',
+                                        row.shop || '-',
+                                        row.employee || '-',
+                                        row.customer_name || '-',
+                                        row.url || '-'
+                                    ]);
+                                }
                             }
                         });
                         
