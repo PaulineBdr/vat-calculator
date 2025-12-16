@@ -489,34 +489,116 @@
                     // ONGLETS 4+: Détail par moyen de paiement
                     // ========================================
                     const createPaymentSheet = (transactionTypes, sheetName) => {
-                        const filteredData = data.filter(row => {
+                        // Trouver tous les paiements correspondant aux types de transaction
+                        const paymentRows = data.filter(row => {
                             const transaction = row.transaction?.toLowerCase() || '';
                             const grossValue = parseFloat(row.gross_value) || 0;
                             return grossValue < 0 && transactionTypes.some(t => transaction === t);
                         });
                         
-                        if (filteredData.length === 0) return;
+                        if (paymentRows.length === 0) return;
+                        
+                        // Grouper toutes les lignes par ID de paiement
+                        const paymentGroups = {};
+                        paymentRows.forEach(paymentRow => {
+                            const paymentId = paymentRow.payment;
+                            if (!paymentGroups[paymentId]) {
+                                paymentGroups[paymentId] = {
+                                    payment: paymentRow,
+                                    relatedRows: []
+                                };
+                            }
+                        });
+                        
+                        // Ajouter toutes les lignes liées à chaque paiement
+                        data.forEach(row => {
+                            const paymentId = row.payment;
+                            if (paymentGroups[paymentId]) {
+                                const grossValue = parseFloat(row.gross_value) || 0;
+                                // Inclure les lignes positives (services/produits) et exclure la ligne de paiement elle-même
+                                if (grossValue > 0) {
+                                    paymentGroups[paymentId].relatedRows.push(row);
+                                }
+                            }
+                        });
                         
                         const headers = exportLanguage === 'fr'
-                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Client', 'Boutique', 'Employé']
-                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'Customer', 'Shop', 'Employee'];
+                            ? ['ID Paiement', 'Date', 'Client', 'Boutique', 'Employé', 'Transaction', 'Type', 'Montant TTC', 'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'Montant Paiement']
+                            : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Transaction', 'Type', 'Amount Incl. VAT', 'VAT Rate', 'VAT Amount', 'VAT Category', 'Payment Amount'];
                         
-                        const sheetData = [
-                            headers,
-                            ...filteredData.map(row => [
-                                row.payment,
-                                row['Heure et jour'] || row['datetime'] || '-',
-                                row.transaction,
-                                row.type,
-                                parseFloat(row.gross_value).toFixed(2) + ' €',
-                                row.customer_name || '-',
-                                row.shop || '-',
-                                row.employee || '-'
-                            ])
-                        ];
+                        const sheetData = [headers];
+                        
+                        // Pour chaque groupe de paiement
+                        Object.keys(paymentGroups).sort().forEach(paymentId => {
+                            const group = paymentGroups[paymentId];
+                            const paymentRow = group.payment;
+                            const relatedRows = group.relatedRows;
+                            
+                            // Informations communes pour ce paiement
+                            const commonInfo = {
+                                paymentId: paymentRow.payment,
+                                date: paymentRow['Heure et jour'] || paymentRow['datetime'] || '-',
+                                customer: paymentRow.customer_name || '-',
+                                shop: paymentRow.shop || '-',
+                                employee: paymentRow.employee || '-',
+                                paymentAmount: parseFloat(paymentRow.gross_value).toFixed(2) + ' €'
+                            };
+                            
+                            // Si aucune ligne liée, afficher quand même le paiement
+                            if (relatedRows.length === 0) {
+                                sheetData.push([
+                                    commonInfo.paymentId,
+                                    commonInfo.date,
+                                    commonInfo.customer,
+                                    commonInfo.shop,
+                                    commonInfo.employee,
+                                    paymentRow.transaction,
+                                    paymentRow.type || '-',
+                                    '-',
+                                    '-',
+                                    '-',
+                                    '-',
+                                    commonInfo.paymentAmount
+                                ]);
+                            } else {
+                                // Afficher chaque ligne liée (service/produit)
+                                relatedRows.forEach((row, idx) => {
+                                    sheetData.push([
+                                        idx === 0 ? commonInfo.paymentId : '', // ID seulement sur la première ligne
+                                        idx === 0 ? commonInfo.date : '',
+                                        idx === 0 ? commonInfo.customer : '',
+                                        idx === 0 ? commonInfo.shop : '',
+                                        idx === 0 ? commonInfo.employee : '',
+                                        row.transaction,
+                                        row.type,
+                                        parseFloat(row.gross_value).toFixed(2) + ' €',
+                                        row.vat_rate ? row.vat_rate + '%' : '-',
+                                        row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
+                                        translateCategory(row.vat_category) || '-',
+                                        idx === 0 ? commonInfo.paymentAmount : '' // Montant paiement seulement sur la première ligne
+                                    ]);
+                                });
+                            }
+                            
+                            // Ligne vide entre les groupes de paiement
+                            sheetData.push(['', '', '', '', '', '', '', '', '', '', '', '']);
+                        });
                         
                         const ws = XLSX.utils.aoa_to_sheet(sheetData);
-                        ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 30 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 20 }];
+                        ws['!cols'] = [
+                            { wch: 12 },  // ID Paiement
+                            { wch: 18 },  // Date
+                            { wch: 25 },  // Client
+                            { wch: 15 },  // Boutique
+                            { wch: 20 },  // Employé
+                            { wch: 20 },  // Transaction
+                            { wch: 35 },  // Type
+                            { wch: 15 },  // Montant TTC
+                            { wch: 10 },  // Taux TVA
+                            { wch: 12 },  // Montant TVA
+                            { wch: 20 },  // Catégorie TVA
+                            { wch: 15 }   // Montant Paiement
+                        ];
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
                     };
                     
