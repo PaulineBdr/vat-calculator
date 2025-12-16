@@ -508,8 +508,8 @@
                         
                         // Créer les headers
                         const headers = exportLanguage === 'fr'
-                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'Boutique', 'Employé', 'Client']
-                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'VAT Rate', 'VAT Amount', 'VAT Category', 'Shop', 'Employee', 'Customer'];
+                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'Boutique', 'Employé', 'Client', 'URL']
+                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'VAT Rate', 'VAT Amount', 'VAT Category', 'Shop', 'Employee', 'Customer', 'URL'];
                         
                         const sheetData = [headers];
                         
@@ -517,17 +517,18 @@
                         data.forEach(row => {
                             if (matchingPaymentIds.has(String(row.payment))) {
                                 sheetData.push([
-                                    row.payment,
+                                    row.payment || '-',
                                     row['Heure et jour'] || row['datetime'] || '-',
                                     row.transaction || '-',
                                     row.type || '-',
-                                    parseFloat(row.gross_value).toFixed(2) + ' €',
+                                    row.gross_value ? parseFloat(row.gross_value).toFixed(2) + ' €' : '-',
                                     row.vat_rate ? row.vat_rate + '%' : '-',
                                     row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
                                     translateCategory(row.vat_category) || '-',
                                     row.shop || '-',
                                     row.employee || '-',
-                                    row.customer_name || '-'
+                                    row.customer_name || '-',
+                                    row.url || '-'
                                 ]);
                             }
                         });
@@ -544,7 +545,8 @@
                             { wch: 20 },  // Catégorie TVA
                             { wch: 15 },  // Boutique
                             { wch: 20 },  // Employé
-                            { wch: 25 }   // Client
+                            { wch: 25 },  // Client
+                            { wch: 60 }   // URL
                         ];
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
                     };
