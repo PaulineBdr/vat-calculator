@@ -500,26 +500,33 @@
                         
                         if (paymentRows.length === 0) return;
                         
-                        // Grouper toutes les lignes par ID de paiement
-                        const paymentGroups = {};
-                        paymentRows.forEach(paymentRow => {
-                            const paymentId = paymentRow.payment;
-                            if (!paymentGroups[paymentId]) {
-                                paymentGroups[paymentId] = {
-                                    payment: paymentRow,
-                                    relatedRows: []
-                                };
-                            }
-                        });
+                        // Récupérer tous les IDs de paiement concernés
+                        const paymentIds = new Set(paymentRows.map(row => row.payment));
                         
-                        // Ajouter toutes les lignes liées à chaque paiement
+                        // Grouper TOUTES les lignes par ID de paiement (pas seulement les paiements)
+                        const paymentGroups = {};
+                        
                         data.forEach(row => {
                             const paymentId = row.payment;
-                            if (paymentGroups[paymentId]) {
+                            // Si ce payment ID correspond à un des paiements qu'on recherche
+                            if (paymentIds.has(paymentId)) {
+                                if (!paymentGroups[paymentId]) {
+                                    paymentGroups[paymentId] = {
+                                        paymentRow: null,
+                                        serviceRows: []
+                                    };
+                                }
+                                
                                 const grossValue = parseFloat(row.gross_value) || 0;
-                                // Inclure les lignes positives (services/produits) et exclure la ligne de paiement elle-même
-                                if (grossValue > 0) {
-                                    paymentGroups[paymentId].relatedRows.push(row);
+                                const transaction = row.transaction?.toLowerCase() || '';
+                                
+                                // Identifier la ligne de paiement
+                                if (grossValue < 0 && transactionTypes.some(t => transaction === t)) {
+                                    paymentGroups[paymentId].paymentRow = row;
+                                }
+                                // Identifier les lignes de services/produits
+                                else if (grossValue > 0) {
+                                    paymentGroups[paymentId].serviceRows.push(row);
                                 }
                             }
                         });
@@ -531,10 +538,12 @@
                         const sheetData = [headers];
                         
                         // Pour chaque groupe de paiement
-                        Object.keys(paymentGroups).sort().forEach(paymentId => {
+                        Object.keys(paymentGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(paymentId => {
                             const group = paymentGroups[paymentId];
-                            const paymentRow = group.payment;
-                            const relatedRows = group.relatedRows;
+                            const paymentRow = group.paymentRow;
+                            const serviceRows = group.serviceRows;
+                            
+                            if (!paymentRow) return; // Sécurité
                             
                             // Informations communes pour ce paiement
                             const commonInfo = {
@@ -546,8 +555,8 @@
                                 paymentAmount: parseFloat(paymentRow.gross_value).toFixed(2) + ' €'
                             };
                             
-                            // Si aucune ligne liée, afficher quand même le paiement
-                            if (relatedRows.length === 0) {
+                            // Si aucune ligne de service, afficher quand même le paiement
+                            if (serviceRows.length === 0) {
                                 sheetData.push([
                                     commonInfo.paymentId,
                                     commonInfo.date,
@@ -563,8 +572,8 @@
                                     commonInfo.paymentAmount
                                 ]);
                             } else {
-                                // Afficher chaque ligne liée (service/produit)
-                                relatedRows.forEach((row, idx) => {
+                                // Afficher chaque ligne de service/produit
+                                serviceRows.forEach((row, idx) => {
                                     sheetData.push([
                                         idx === 0 ? commonInfo.paymentId : '', // ID seulement sur la première ligne
                                         idx === 0 ? commonInfo.date : '',
