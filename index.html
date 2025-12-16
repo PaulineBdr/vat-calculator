@@ -673,13 +673,15 @@
                                 
                                 // Garder si :
                                 // 1. C'est un appointment (service)
-                                // 2. C'est le type de paiement recherché
-                                // 3. C'est la ligne URL (pas de transaction, pas de gross_value, mais une URL)
+                                // 2. C'est un product_sale (produit/forfait)
+                                // 3. C'est le type de paiement recherché
+                                // 4. C'est la ligne URL (pas de transaction, pas de gross_value, mais une URL)
                                 const isAppointment = transaction === 'appointment';
+                                const isProductSale = transaction === 'product_sale';
                                 const isMatchingPayment = grossValue < 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim());
                                 const isUrlLine = !transaction && !grossValue && row.url;
                                 
-                                if (isAppointment || isMatchingPayment || isUrlLine) {
+                                if (isAppointment || isProductSale || isMatchingPayment || isUrlLine) {
                                     sheetData.push([
                                         row.payment || '-',
                                         row['Heure et jour'] || row['datetime'] || '-',
@@ -772,8 +774,14 @@
                     appointmentsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
                     appointmentsOther: { ht: 0, tva: 0, ttc: 0 },
                     packages: { ht: 0, tva: 0, ttc: 0 },
+                    packagesGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    packagesOther: { ht: 0, tva: 0, ttc: 0 },
                     products: { ht: 0, tva: 0, ttc: 0 },
+                    productsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    productsOther: { ht: 0, tva: 0, ttc: 0 },
                     specificProducts: { ht: 0, tva: 0, ttc: 0 },
+                    specificProductsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    specificProductsOther: { ht: 0, tva: 0, ttc: 0 },
                     giftVouchers: { ht: 0, tva: 0, ttc: 0 }
                 };
             
@@ -821,24 +829,91 @@
                                 summary.appointmentsOther.tva += tva;
                                 summary.appointmentsOther.ht += ht;
                             }
-                        } else if (row.vat_category === 'Package') {
+                        } else if (row.vat_category === 'Package' || row.vat_category === 'Package (Partial Gift Voucher)' || row.vat_category === 'Package (Paid by Gift Voucher)') {
                             summary.packages.ttc += ttc;
                             summary.packages.tva += tva;
                             summary.packages.ht += ht;
-                        } else if (row.vat_category === 'Product') {
+                            
+                            if (row.vat_category === 'Package (Paid by Gift Voucher)') {
+                                summary.packagesGiftVoucher.ttc += ttc;
+                                summary.packagesGiftVoucher.tva += 0;
+                                summary.packagesGiftVoucher.ht += ttc;
+                            } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    
+                                    summary.packagesGiftVoucher.ttc += giftVoucherPart;
+                                    summary.packagesGiftVoucher.tva += 0;
+                                    summary.packagesGiftVoucher.ht += giftVoucherPart;
+                                    
+                                    summary.packagesOther.ttc += amountToTax;
+                                    summary.packagesOther.tva += tva;
+                                    summary.packagesOther.ht += amountToTax - tva;
+                                }
+                            } else {
+                                summary.packagesOther.ttc += ttc;
+                                summary.packagesOther.tva += tva;
+                                summary.packagesOther.ht += ht;
+                            }
+                        } else if (row.vat_category === 'Product' || row.vat_category === 'Product (Partial Gift Voucher)' || row.vat_category === 'Product (Paid by Gift Voucher)') {
                             summary.products.ttc += ttc;
                             summary.products.tva += tva;
                             summary.products.ht += ht;
-                        } else if (row.vat_category === specificProductCategoryName) {
+                            
+                            if (row.vat_category === 'Product (Paid by Gift Voucher)') {
+                                summary.productsGiftVoucher.ttc += ttc;
+                                summary.productsGiftVoucher.tva += 0;
+                                summary.productsGiftVoucher.ht += ttc;
+                            } else if (row.vat_category === 'Product (Partial Gift Voucher)') {
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    
+                                    summary.productsGiftVoucher.ttc += giftVoucherPart;
+                                    summary.productsGiftVoucher.tva += 0;
+                                    summary.productsGiftVoucher.ht += giftVoucherPart;
+                                    
+                                    summary.productsOther.ttc += amountToTax;
+                                    summary.productsOther.tva += tva;
+                                    summary.productsOther.ht += amountToTax - tva;
+                                }
+                            } else {
+                                summary.productsOther.ttc += ttc;
+                                summary.productsOther.tva += tva;
+                                summary.productsOther.ht += ht;
+                            }
+                        } else if (row.vat_category === specificProductCategoryName || row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)' || row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
                             summary.specificProducts.ttc += ttc;
                             summary.specificProducts.tva += tva;
                             summary.specificProducts.ht += ht;
-                        } else if (row.vat_category === 'Gift Voucher') {
-                            summary.giftVouchers.ttc += ttc;
-                            summary.giftVouchers.tva += tva;
-                            summary.giftVouchers.ht += ht;
+                            
+                            if (row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
+                                summary.specificProductsGiftVoucher.ttc += ttc;
+                                summary.specificProductsGiftVoucher.tva += 0;
+                                summary.specificProductsGiftVoucher.ht += ttc;
+                            } else if (row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)') {
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    
+                                    summary.specificProductsGiftVoucher.ttc += giftVoucherPart;
+                                    summary.specificProductsGiftVoucher.tva += 0;
+                                    summary.specificProductsGiftVoucher.ht += giftVoucherPart;
+                                    
+                                    summary.specificProductsOther.ttc += amountToTax;
+                                    summary.specificProductsOther.tva += tva;
+                                    summary.specificProductsOther.ht += amountToTax - tva;
+                                }
+                            } else {
+                                summary.specificProductsOther.ttc += ttc;
+                                summary.specificProductsOther.tva += tva;
+                                summary.specificProductsOther.ht += ht;
+                            }
                         }
-                    }
                 });
             
                 return summary;
@@ -1152,30 +1227,105 @@
                                                 )}
                                                 
                                                 {summary.packages.ttc > 0 && (
-                                                    <tr className="bg-green-50 hover:bg-green-100">
-                                                        <td className="px-4 py-3 text-green-800">📦 {translate('Packages')}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.packages.ht)}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.packages.tva)}</td>
-                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.packages.ttc)}</td>
-                                                    </tr>
+                                                    <>
+                                                        {summary.packagesGiftVoucher.ttc > 0 ? (
+                                                            <>
+                                                                <tr className="bg-green-50 hover:bg-green-100 border-b border-green-200">
+                                                                    <td className="px-4 py-3 text-green-800 font-bold">📦 {translate('Packages')} (Total)</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.packages.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.packages.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.packages.ttc)}</td>
+                                                                </tr>
+                                                                <tr className="bg-green-50 hover:bg-green-100">
+                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ {translate('Paid by Gift Voucher')}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.packagesGiftVoucher.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.packagesGiftVoucher.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.packagesGiftVoucher.ttc)}</td>
+                                                                </tr>
+                                                                <tr className="bg-green-50 hover:bg-green-100">
+                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ {translate('Paid by Other Methods')}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.packagesOther.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.packagesOther.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.packagesOther.ttc)}</td>
+                                                                </tr>
+                                                            </>
+                                                        ) : (
+                                                            <tr className="bg-green-50 hover:bg-green-100">
+                                                                <td className="px-4 py-3 text-green-800">📦 {translate('Packages')}</td>
+                                                                <td className="px-4 py-3 text-right">{formatCurrency(summary.packages.ht)}</td>
+                                                                <td className="px-4 py-3 text-right">{formatCurrency(summary.packages.tva)}</td>
+                                                                <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.packages.ttc)}</td>
+                                                            </tr>
+                                                        )}
+                                                    </>
                                                 )}
                                                 
                                                 {summary.products.ttc > 0 && (
-                                                    <tr className="bg-blue-50 hover:bg-blue-100">
-                                                        <td className="px-4 py-3 text-blue-800">🛍️ {translate('Products')}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.products.ht)}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.products.tva)}</td>
-                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.products.ttc)}</td>
-                                                    </tr>
+                                                    <>
+                                                        {summary.productsGiftVoucher.ttc > 0 ? (
+                                                            <>
+                                                                <tr className="bg-blue-50 hover:bg-blue-100 border-b border-blue-200">
+                                                                    <td className="px-4 py-3 text-blue-800 font-bold">🛍️ {translate('Products')} (Total)</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.products.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.products.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.products.ttc)}</td>
+                                                                </tr>
+                                                                <tr className="bg-blue-50 hover:bg-blue-100">
+                                                                    <td className="px-4 py-3 text-blue-700 pl-8">↳ {translate('Paid by Gift Voucher')}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.productsGiftVoucher.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.productsGiftVoucher.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.productsGiftVoucher.ttc)}</td>
+                                                                </tr>
+                                                                <tr className="bg-blue-50 hover:bg-blue-100">
+                                                                    <td className="px-4 py-3 text-blue-700 pl-8">↳ {translate('Paid by Other Methods')}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.productsOther.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.productsOther.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.productsOther.ttc)}</td>
+                                                                </tr>
+                                                            </>
+                                                        ) : (
+                                                            <tr className="bg-blue-50 hover:bg-blue-100">
+                                                                <td className="px-4 py-3 text-blue-800">🛍️ {translate('Products')}</td>
+                                                                <td className="px-4 py-3 text-right">{formatCurrency(summary.products.ht)}</td>
+                                                                <td className="px-4 py-3 text-right">{formatCurrency(summary.products.tva)}</td>
+                                                                <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.products.ttc)}</td>
+                                                            </tr>
+                                                        )}
+                                                    </>
                                                 )}
                                                 
                                                 {enableSpecificProductRate && summary.specificProducts.ttc > 0 && (
-                                                    <tr className="bg-cyan-50 hover:bg-cyan-100">
-                                                        <td className="px-4 py-3 text-cyan-800">🛍️ {specificProductCategoryName}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.specificProducts.ht)}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(summary.specificProducts.tva)}</td>
-                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.specificProducts.ttc)}</td>
-                                                    </tr>
+                                                    <>
+                                                        {summary.specificProductsGiftVoucher.ttc > 0 ? (
+                                                            <>
+                                                                <tr className="bg-cyan-50 hover:bg-cyan-100 border-b border-cyan-200">
+                                                                    <td className="px-4 py-3 text-cyan-800 font-bold">🛍️ {specificProductCategoryName} (Total)</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.specificProducts.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.specificProducts.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.specificProducts.ttc)}</td>
+                                                                </tr>
+                                                                <tr className="bg-cyan-50 hover:bg-cyan-100">
+                                                                    <td className="px-4 py-3 text-cyan-700 pl-8">↳ {translate('Paid by Gift Voucher')}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.specificProductsGiftVoucher.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.specificProductsGiftVoucher.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.specificProductsGiftVoucher.ttc)}</td>
+                                                                </tr>
+                                                                <tr className="bg-cyan-50 hover:bg-cyan-100">
+                                                                    <td className="px-4 py-3 text-cyan-700 pl-8">↳ {translate('Paid by Other Methods')}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.specificProductsOther.ht)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.specificProductsOther.tva)}</td>
+                                                                    <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.specificProductsOther.ttc)}</td>
+                                                                </tr>
+                                                            </>
+                                                        ) : (
+                                                            <tr className="bg-cyan-50 hover:bg-cyan-100">
+                                                                <td className="px-4 py-3 text-cyan-800">🛍️ {specificProductCategoryName}</td>
+                                                                <td className="px-4 py-3 text-right">{formatCurrency(summary.specificProducts.ht)}</td>
+                                                                <td className="px-4 py-3 text-right">{formatCurrency(summary.specificProducts.tva)}</td>
+                                                                <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.specificProducts.ttc)}</td>
+                                                            </tr>
+                                                        )}
+                                                    </>
                                                 )}
                                                 
                                                 {summary.giftVouchers.ttc > 0 && (
