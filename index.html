@@ -523,19 +523,19 @@
                         if (grossValue < 0) {
                             const amount = Math.abs(grossValue);
                             
-                            if (transaction === 'cash') {
+                            if (transaction === 'cash' || transaction === 'en espèces' || transaction === 'espèces') {
                                 payments.cash += amount;
-                            } else if (transaction === 'instore card') {
+                            } else if (transaction === 'instore card' || transaction === 'par carte au salon') {
                                 payments.instore_card += amount;
-                            } else if (transaction === 'bank transfer') {
+                            } else if (transaction === 'bank transfer' || transaction === 'virement bancaire') {
                                 payments.bank_transfer += amount;
-                            } else if (transaction === 'cheque') {
+                            } else if (transaction === 'cheque' || transaction === 'chèque') {
                                 payments.cheque += amount;
-                            } else if (transaction === 'other') {
+                            } else if (transaction === 'other' || transaction === 'autre') {
                                 payments.other += amount;
                             } else if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
                                 payments.gift_voucher += amount;
-                            } else if (transaction === 'online_card_payment') {
+                            } else if (transaction === 'online_card_payment' || transaction === 'paiement par carte en ligne') {
                                 payments.online_card += amount;
                             }
                             
@@ -544,7 +544,7 @@
                     });
                     
                     return payments;
-            };
+                };
             
             const summary = data.length > 0 ? calculateSummary() : null;
             const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
