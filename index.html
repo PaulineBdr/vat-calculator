@@ -491,119 +491,60 @@
                     // ONGLETS 4+: Détail par moyen de paiement
                     // ========================================
                     const createPaymentSheet = (transactionTypes, sheetName) => {
-                        // D'abord, regrouper TOUTES les lignes par payment ID
-                        const allPaymentGroups = {};
+                        // Trouver tous les payment IDs qui ont ce type de paiement
+                        const matchingPaymentIds = new Set();
                         
                         data.forEach(row => {
-                            const paymentId = String(row.payment); // Convertir en string pour être sûr
-                            if (!allPaymentGroups[paymentId]) {
-                                allPaymentGroups[paymentId] = [];
-                            }
-                            allPaymentGroups[paymentId].push(row);
-                        });
-                        
-                        // Ensuite, filtrer pour ne garder que les groupes qui contiennent le type de paiement recherché
-                        const relevantGroups = {};
-                        
-                        Object.keys(allPaymentGroups).forEach(paymentId => {
-                            const group = allPaymentGroups[paymentId];
+                            const transaction = (row.transaction || '').toLowerCase().trim();
+                            const grossValue = parseFloat(row.gross_value) || 0;
                             
-                            // Vérifier si ce groupe contient le type de paiement qu'on cherche
-                            const hasMatchingPayment = group.some(row => {
-                                const transaction = row.transaction?.toLowerCase() || '';
-                                const grossValue = parseFloat(row.gross_value) || 0;
-                                return grossValue < 0 && transactionTypes.some(t => transaction === t);
-                            });
-                            
-                            if (hasMatchingPayment) {
-                                relevantGroups[paymentId] = group;
+                            // Si c'est un paiement négatif qui correspond au type recherché
+                            if (grossValue < 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim())) {
+                                matchingPaymentIds.add(String(row.payment));
                             }
                         });
                         
-                        if (Object.keys(relevantGroups).length === 0) return;
+                        if (matchingPaymentIds.size === 0) return;
                         
+                        // Créer les headers
                         const headers = exportLanguage === 'fr'
-                            ? ['ID Paiement', 'Date', 'Client', 'Boutique', 'Employé', 'Transaction', 'Type', 'Montant TTC', 'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'Montant Paiement']
-                            : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Transaction', 'Type', 'Amount Incl. VAT', 'VAT Rate', 'VAT Amount', 'VAT Category', 'Payment Amount'];
+                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'Boutique', 'Employé', 'Client']
+                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'VAT Rate', 'VAT Amount', 'VAT Category', 'Shop', 'Employee', 'Customer'];
                         
                         const sheetData = [headers];
                         
-                        // Pour chaque groupe de paiement
-                        Object.keys(relevantGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(paymentId => {
-                            const allRows = relevantGroups[paymentId];
-                            
-                            // Séparer les lignes de paiement (négatives) et les services (positives)
-                            let paymentRow = null;
-                            const serviceRows = [];
-                            
-                            allRows.forEach(row => {
-                                const grossValue = parseFloat(row.gross_value) || 0;
-                                const transaction = row.transaction?.toLowerCase() || '';
-                                
-                                if (grossValue < 0 && transactionTypes.some(t => transaction === t)) {
-                                    paymentRow = row;
-                                } else if (grossValue > 0) {
-                                    serviceRows.push(row);
-                                }
-                            });
-                            
-                            if (!paymentRow) return;
-                            
-                            // Informations communes
-                            const commonInfo = {
-                                paymentId: paymentRow.payment,
-                                date: paymentRow['Heure et jour'] || paymentRow['datetime'] || '-',
-                                customer: paymentRow.customer_name || '-',
-                                shop: paymentRow.shop || '-',
-                                employee: paymentRow.employee || '-',
-                                paymentAmount: parseFloat(paymentRow.gross_value).toFixed(2) + ' €'
-                            };
-                            
-                            console.log('Payment ID:', paymentId, 'Services found:', serviceRows.length);
-                            
-                            // Si aucun service, afficher quand même le paiement
-                            if (serviceRows.length === 0) {
+                        // Filtrer et afficher toutes les lignes qui ont un payment ID correspondant
+                        data.forEach(row => {
+                            if (matchingPaymentIds.has(String(row.payment))) {
                                 sheetData.push([
-                                    commonInfo.paymentId,
-                                    commonInfo.date,
-                                    commonInfo.customer,
-                                    commonInfo.shop,
-                                    commonInfo.employee,
-                                    paymentRow.transaction,
-                                    paymentRow.type || '-',
-                                    '-',
-                                    '-',
-                                    '-',
-                                    '-',
-                                    commonInfo.paymentAmount
+                                    row.payment,
+                                    row['Heure et jour'] || row['datetime'] || '-',
+                                    row.transaction || '-',
+                                    row.type || '-',
+                                    parseFloat(row.gross_value).toFixed(2) + ' €',
+                                    row.vat_rate ? row.vat_rate + '%' : '-',
+                                    row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
+                                    translateCategory(row.vat_category) || '-',
+                                    row.shop || '-',
+                                    row.employee || '-',
+                                    row.customer_name || '-'
                                 ]);
-                            } else {
-                                // Afficher chaque service
-                                serviceRows.forEach((row, idx) => {
-                                    sheetData.push([
-                                        idx === 0 ? commonInfo.paymentId : '',
-                                        idx === 0 ? commonInfo.date : '',
-                                        idx === 0 ? commonInfo.customer : '',
-                                        idx === 0 ? commonInfo.shop : '',
-                                        idx === 0 ? commonInfo.employee : '',
-                                        row.transaction,
-                                        row.type,
-                                        parseFloat(row.gross_value).toFixed(2) + ' €',
-                                        row.vat_rate ? row.vat_rate + '%' : '-',
-                                        row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
-                                        translateCategory(row.vat_category) || '-',
-                                        idx === 0 ? commonInfo.paymentAmount : ''
-                                    ]);
-                                });
                             }
-                            
-                            sheetData.push(['', '', '', '', '', '', '', '', '', '', '', '']);
                         });
                         
                         const ws = XLSX.utils.aoa_to_sheet(sheetData);
                         ws['!cols'] = [
-                            { wch: 12 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 },
-                            { wch: 35 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
+                            { wch: 12 },  // ID Paiement
+                            { wch: 18 },  // Date
+                            { wch: 20 },  // Transaction
+                            { wch: 35 },  // Type
+                            { wch: 12 },  // Montant
+                            { wch: 10 },  // Taux TVA
+                            { wch: 12 },  // Montant TVA
+                            { wch: 20 },  // Catégorie TVA
+                            { wch: 15 },  // Boutique
+                            { wch: 20 },  // Employé
+                            { wch: 25 }   // Client
                         ];
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
                     };
