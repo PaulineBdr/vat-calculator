@@ -214,16 +214,27 @@
                                         }
                                         
                                         // Apply VAT on the taxable amount
+                                        // Apply VAT on the taxable amount
                                         const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                         row.vat_amount = calculatedVAT;
-                                        row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`; // Pour voir le montant taxé
                                         row.vat_rate = vatRateAppointment;
                                         
-                                        if (hasGiftVoucherPayment && amountToTax === 0) {
-                                            row.vat_category = 'Appointment (Paid by Gift Voucher)';
-                                        } else if (hasGiftVoucherPayment && amountToTax < grossValue) {
-                                            row.vat_category = 'Appointment (Partial Gift Voucher)';
+                                        // Déterminer la catégorie et afficher le montant taxé uniquement si nécessaire
+                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
+                                            // TVA appliquée à l'achat du bon cadeau
+                                            if (amountToTax === 0) {
+                                                // 100% bon cadeau
+                                                row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                            } else if (amountToTax < grossValue) {
+                                                // Paiement mixte : afficher le montant taxé
+                                                row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
+                                                row.vat_category = 'Appointment (Partial Gift Voucher)';
+                                            } else {
+                                                // Pas de bon cadeau utilisé (ne devrait pas arriver)
+                                                row.vat_category = 'Appointment';
+                                            }
                                         } else {
+                                            // Pas de bon cadeau OU TVA à 0% sur bon cadeau (TVA au rdv)
                                             row.vat_category = 'Appointment';
                                         }
                                     } else if (transaction === 'product_sale') {
