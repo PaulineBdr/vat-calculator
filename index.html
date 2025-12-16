@@ -260,13 +260,59 @@
                                             row.vat_category = 'Appointment';
                                         }
                                     } else if (transaction === 'product_sale') {
+                                        // Calculate proportional gift voucher allocation for products/packages
+                                        let amountToTax = grossValue;
+                                        let totalProducts = 0;
+                                        
+                                        // Calculate total products/packages in this payment
+                                        group.forEach(r => {
+                                            const t = r.transaction?.toLowerCase() || '';
+                                            const gv = parseFloat(r.gross_value) || 0;
+                                            if (t === 'product_sale' && gv > 0) {
+                                                totalProducts += gv;
+                                            }
+                                        });
+                                        
+                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalProducts > 0) {
+                                            // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
+                                            const proportion = grossValue / totalProducts;
+                                            const giftVoucherPart = proportion * giftVoucherAmount;
+                                            amountToTax = grossValue - giftVoucherPart;
+                                        }
                                     
                                         const isPackage = packageKw.some(keyword => type.includes(keyword));
                                         
                                         if (isPackage) {
-                                            row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                            row.vat_rate = vatRateAppointment;
-                                            row.vat_category = 'Package';
+                                            const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
+                                            row.vat_amount = calculatedVAT;
+                                            
+                                            if (hasGiftVoucherPayment) {
+                                                if (vatRateGiftVoucher > 0) {
+                                                    if (amountToTax === 0) {
+                                                        row.vat_rate = '';
+                                                        row.vat_amount = '';
+                                                        row.vat_category = 'Package (Paid by Gift Voucher)';
+                                                    } else if (amountToTax < grossValue) {
+                                                        row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
+                                                        row.vat_rate = vatRateAppointment;
+                                                        row.vat_category = 'Package (Partial Gift Voucher)';
+                                                    } else {
+                                                        row.vat_rate = vatRateAppointment;
+                                                        row.vat_category = 'Package';
+                                                    }
+                                                } else {
+                                                    row.vat_rate = vatRateAppointment;
+                                                    const hasOtherPayment = group.some(r => {
+                                                        const t = r.transaction?.toLowerCase() || '';
+                                                        const gv = parseFloat(r.gross_value) || 0;
+                                                        return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                    });
+                                                    row.vat_category = hasOtherPayment ? 'Package (Partial Gift Voucher)' : 'Package (Paid by Gift Voucher)';
+                                                }
+                                            } else {
+                                                row.vat_rate = vatRateAppointment;
+                                                row.vat_category = 'Package';
+                                            }
                                         } else {
                                             const isGiftVoucher = giftKw.some(keyword => type.includes(keyword));
                                             
@@ -278,16 +324,71 @@
                                                 const isSpecificProduct = enableSpecificProductRate && specificProdKw.some(keyword => type.includes(keyword));
                                                 
                                                 if (isSpecificProduct) {
-                                                    row.vat_amount = (grossValue * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
-                                                    row.vat_rate = vatRateProductSpecific;
-                                                    row.vat_category = specificProductCategoryName;
+                                                    const calculatedVAT = (amountToTax * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
+                                                    row.vat_amount = calculatedVAT;
+                                                    
+                                                    if (hasGiftVoucherPayment) {
+                                                        if (vatRateGiftVoucher > 0) {
+                                                            if (amountToTax === 0) {
+                                                                row.vat_rate = '';
+                                                                row.vat_amount = '';
+                                                                row.vat_category = specificProductCategoryName + ' (Paid by Gift Voucher)';
+                                                            } else if (amountToTax < grossValue) {
+                                                                row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
+                                                                row.vat_rate = vatRateProductSpecific;
+                                                                row.vat_category = specificProductCategoryName + ' (Partial Gift Voucher)';
+                                                            } else {
+                                                                row.vat_rate = vatRateProductSpecific;
+                                                                row.vat_category = specificProductCategoryName;
+                                                            }
+                                                        } else {
+                                                            row.vat_rate = vatRateProductSpecific;
+                                                            const hasOtherPayment = group.some(r => {
+                                                                const t = r.transaction?.toLowerCase() || '';
+                                                                const gv = parseFloat(r.gross_value) || 0;
+                                                                return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                            });
+                                                            row.vat_category = hasOtherPayment ? specificProductCategoryName + ' (Partial Gift Voucher)' : specificProductCategoryName + ' (Paid by Gift Voucher)';
+                                                        }
+                                                    } else {
+                                                        row.vat_rate = vatRateProductSpecific;
+                                                        row.vat_category = specificProductCategoryName;
+                                                    }
                                                 } else {
-                                                    row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
-                                                    row.vat_rate = vatRateProduct;
-                                                    row.vat_category = 'Product';
+                                                    const calculatedVAT = (amountToTax * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
+                                                    row.vat_amount = calculatedVAT;
+                                                    
+                                                    if (hasGiftVoucherPayment) {
+                                                        if (vatRateGiftVoucher > 0) {
+                                                            if (amountToTax === 0) {
+                                                                row.vat_rate = '';
+                                                                row.vat_amount = '';
+                                                                row.vat_category = 'Product (Paid by Gift Voucher)';
+                                                            } else if (amountToTax < grossValue) {
+                                                                row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
+                                                                row.vat_rate = vatRateProduct;
+                                                                row.vat_category = 'Product (Partial Gift Voucher)';
+                                                            } else {
+                                                                row.vat_rate = vatRateProduct;
+                                                                row.vat_category = 'Product';
+                                                            }
+                                                        } else {
+                                                            row.vat_rate = vatRateProduct;
+                                                            const hasOtherPayment = group.some(r => {
+                                                                const t = r.transaction?.toLowerCase() || '';
+                                                                const gv = parseFloat(r.gross_value) || 0;
+                                                                return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                            });
+                                                            row.vat_category = hasOtherPayment ? 'Product (Partial Gift Voucher)' : 'Product (Paid by Gift Voucher)';
+                                                        }
+                                                    } else {
+                                                        row.vat_rate = vatRateProduct;
+                                                        row.vat_category = 'Product';
+                                                    }
                                                 }
                                             }
                                         }
+                                    }
                                     } else {
                                         row.vat_amount = '';
                                         row.vat_rate = '';
