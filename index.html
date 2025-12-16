@@ -840,11 +840,7 @@
                             summary.packages.ht += ht;
                             
                             if (row.vat_category === 'Package (Paid by Gift Voucher)') {
-                                console.log('→ 100% Gift Voucher');
-                        } else if (row.vat_category === 'Package' || row.vat_category === 'Package (Partial Gift Voucher)' || row.vat_category === 'Package (Paid by Gift Voucher)') {
-                            summary.packages.ttc += ttc;
-                            summary.packages.tva += tva;
-                            summary.packages.ht += ht;
+                                console.log('→ 100% Gift Voucher')
                             
                             if (row.vat_category === 'Package (Paid by Gift Voucher)') {
                                 summary.packagesGiftVoucher.ttc += ttc;
