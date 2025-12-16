@@ -407,74 +407,72 @@
                     specificProducts: { ht: 0, tva: 0, ttc: 0 },
                     giftVouchers: { ht: 0, tva: 0, ttc: 0 }
                 };
-                const summary = data.length > 0 ? calculateSummary() : null;
-                const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
-
-                   data.forEach(row => {
-                        if (row.vat_amount && row.vat_rate !== '') {
-                            const ttc = parseFloat(row.gross_value) || 0;
-                            const tva = parseFloat(row.vat_amount) || 0;
-                            const ht = ttc - tva;
-                
-                            summary.total.ttc += ttc;
-                            summary.total.tva += tva;
-                            summary.total.ht += ht;
-                
-                            if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)') {
-                                summary.appointments.ttc += ttc;
-                                summary.appointments.tva += tva;
-                                summary.appointments.ht += ht;
-                                
-                                // Calculer la part payée par bon cadeau vs autre
-                                if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
-                                    // Extraire le montant taxé depuis le texte [taxé:XX.XX€]
-                                    const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                                    if (match) {
-                                        const amountToTax = parseFloat(match[1]);
-                                        const giftVoucherPart = ttc - amountToTax;
-                                        const giftVoucherHT = giftVoucherPart - 0; // Pas de TVA sur la part bon cadeau
-                                        
-                                        // Part bon cadeau
-                                        summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
-                                        summary.appointmentsGiftVoucher.tva += 0;
-                                        summary.appointmentsGiftVoucher.ht += giftVoucherHT;
-                                        
-                                        // Part autre paiement
-                                        const otherPart = amountToTax;
-                                        summary.appointmentsOther.ttc += otherPart;
-                                        summary.appointmentsOther.tva += tva;
-                                        summary.appointmentsOther.ht += otherPart - tva;
-                                    }
-                                } else {
-                                    // Appointment normal (pas de bon cadeau)
-                                    summary.appointmentsOther.ttc += ttc;
+            
+                data.forEach(row => {
+                    if (row.vat_amount && row.vat_rate !== '') {
+                        const ttc = parseFloat(row.gross_value) || 0;
+                        const tva = parseFloat(row.vat_amount) || 0;
+                        const ht = ttc - tva;
+            
+                        summary.total.ttc += ttc;
+                        summary.total.tva += tva;
+                        summary.total.ht += ht;
+            
+                        if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                            summary.appointments.ttc += ttc;
+                            summary.appointments.tva += tva;
+                            summary.appointments.ht += ht;
+                            
+                            // Calculer la part payée par bon cadeau vs autre
+                            if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                                // Extraire le montant taxé depuis le texte [taxé:XX.XX€]
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    const giftVoucherHT = giftVoucherPart - 0; // Pas de TVA sur la part bon cadeau
+                                    
+                                    // Part bon cadeau
+                                    summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
+                                    summary.appointmentsGiftVoucher.tva += 0;
+                                    summary.appointmentsGiftVoucher.ht += giftVoucherHT;
+                                    
+                                    // Part autre paiement
+                                    const otherPart = amountToTax;
+                                    summary.appointmentsOther.ttc += otherPart;
                                     summary.appointmentsOther.tva += tva;
-                                    summary.appointmentsOther.ht += ht;
+                                    summary.appointmentsOther.ht += otherPart - tva;
                                 }
-                            } else if (row.vat_category === 'Package') {
-                                summary.packages.ttc += ttc;
-                                summary.packages.tva += tva;
-                                summary.packages.ht += ht;
-                            } else if (row.vat_category === 'Product') {
-                                summary.products.ttc += ttc;
-                                summary.products.tva += tva;
-                                summary.products.ht += ht;
-                            } else if (row.vat_category === specificProductCategoryName) {
-                                summary.specificProducts.ttc += ttc;
-                                summary.specificProducts.tva += tva;
-                                summary.specificProducts.ht += ht;
-                            } else if (row.vat_category === 'Gift Voucher') {
-                                summary.giftVouchers.ttc += ttc;
-                                summary.giftVouchers.tva += tva;
-                                summary.giftVouchers.ht += ht;
+                            } else {
+                                // Appointment normal (pas de bon cadeau)
+                                summary.appointmentsOther.ttc += ttc;
+                                summary.appointmentsOther.tva += tva;
+                                summary.appointmentsOther.ht += ht;
                             }
+                        } else if (row.vat_category === 'Package') {
+                            summary.packages.ttc += ttc;
+                            summary.packages.tva += tva;
+                            summary.packages.ht += ht;
+                        } else if (row.vat_category === 'Product') {
+                            summary.products.ttc += ttc;
+                            summary.products.tva += tva;
+                            summary.products.ht += ht;
+                        } else if (row.vat_category === specificProductCategoryName) {
+                            summary.specificProducts.ttc += ttc;
+                            summary.specificProducts.tva += tva;
+                            summary.specificProducts.ht += ht;
+                        } else if (row.vat_category === 'Gift Voucher') {
+                            summary.giftVouchers.ttc += ttc;
+                            summary.giftVouchers.tva += tva;
+                            summary.giftVouchers.ht += ht;
                         }
-                    });
-                
-                    return summary;
+                    }
+                });
+            
+                return summary;
             };
-
             const summary = data.length > 0 ? calculateSummary() : null;
+            const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
             const translate = (key) => {
                 if (exportLanguage === 'fr') {
                     return {
@@ -489,7 +487,7 @@
                         'Gift Vouchers': 'Bons Cadeaux',
                         'Excl. VAT': 'HT',
                         'VAT': 'TVA',
-                        'Incl. VAT': 'TTC'
+                        'Incl. VAT': 'TTC',
                         'Payment Methods Breakdown': 'Répartition par Moyen de Paiement',
                         'Total Collected': 'Total Encaissé',
                         'Cash': 'Espèces',
