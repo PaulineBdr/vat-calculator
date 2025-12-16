@@ -609,21 +609,99 @@
                 }
                 
                 if (summary.packages.ttc > 0) {
-                    vatSummaryData.push([
-                        translate('Packages'),
-                        summary.packages.ht.toFixed(2) + ' €',
-                        summary.packages.tva.toFixed(2) + ' €',
-                        summary.packages.ttc.toFixed(2) + ' €'
-                    ]);
+                    if (summary.packagesGiftVoucher.ttc > 0) {
+                        // Afficher le détail avec sous-catégories
+                        vatSummaryData.push([
+                            translate('Packages') + ' (Total)',
+                            summary.packages.ht.toFixed(2) + ' €',
+                            summary.packages.tva.toFixed(2) + ' €',
+                            summary.packages.ttc.toFixed(2) + ' €'
+                        ]);
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Gift Voucher'),
+                            summary.packagesGiftVoucher.ht.toFixed(2) + ' €',
+                            summary.packagesGiftVoucher.tva.toFixed(2) + ' €',
+                            summary.packagesGiftVoucher.ttc.toFixed(2) + ' €'
+                        ]);
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Other Methods'),
+                            summary.packagesOther.ht.toFixed(2) + ' €',
+                            summary.packagesOther.tva.toFixed(2) + ' €',
+                            summary.packagesOther.ttc.toFixed(2) + ' €'
+                        ]);
+                    } else {
+                        // Afficher une seule ligne "Packages"
+                        vatSummaryData.push([
+                            translate('Packages'),
+                            summary.packages.ht.toFixed(2) + ' €',
+                            summary.packages.tva.toFixed(2) + ' €',
+                            summary.packages.ttc.toFixed(2) + ' €'
+                        ]);
+                    }
                 }
                 
                 if (summary.products.ttc > 0) {
-                    vatSummaryData.push([
-                        translate('Products'),
-                        summary.products.ht.toFixed(2) + ' €',
-                        summary.products.tva.toFixed(2) + ' €',
-                        summary.products.ttc.toFixed(2) + ' €'
-                    ]);
+                    if (summary.productsGiftVoucher.ttc > 0) {
+                        // Afficher le détail avec sous-catégories
+                        vatSummaryData.push([
+                            translate('Products') + ' (Total)',
+                            summary.products.ht.toFixed(2) + ' €',
+                            summary.products.tva.toFixed(2) + ' €',
+                            summary.products.ttc.toFixed(2) + ' €'
+                        ]);
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Gift Voucher'),
+                            summary.productsGiftVoucher.ht.toFixed(2) + ' €',
+                            summary.productsGiftVoucher.tva.toFixed(2) + ' €',
+                            summary.productsGiftVoucher.ttc.toFixed(2) + ' €'
+                        ]);
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Other Methods'),
+                            summary.productsOther.ht.toFixed(2) + ' €',
+                            summary.productsOther.tva.toFixed(2) + ' €',
+                            summary.productsOther.ttc.toFixed(2) + ' €'
+                        ]);
+                    } else {
+                        // Afficher une seule ligne "Products"
+                        vatSummaryData.push([
+                            translate('Products'),
+                            summary.products.ht.toFixed(2) + ' €',
+                            summary.products.tva.toFixed(2) + ' €',
+                            summary.products.ttc.toFixed(2) + ' €'
+                        ]);
+                    }
+                }
+                
+                if (enableSpecificProductRate && summary.specificProducts.ttc > 0) {
+                    if (summary.specificProductsGiftVoucher.ttc > 0) {
+                        // Afficher le détail avec sous-catégories
+                        vatSummaryData.push([
+                            specificProductCategoryName + ' (Total)',
+                            summary.specificProducts.ht.toFixed(2) + ' €',
+                            summary.specificProducts.tva.toFixed(2) + ' €',
+                            summary.specificProducts.ttc.toFixed(2) + ' €'
+                        ]);
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Gift Voucher'),
+                            summary.specificProductsGiftVoucher.ht.toFixed(2) + ' €',
+                            summary.specificProductsGiftVoucher.tva.toFixed(2) + ' €',
+                            summary.specificProductsGiftVoucher.ttc.toFixed(2) + ' €'
+                        ]);
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Other Methods'),
+                            summary.specificProductsOther.ht.toFixed(2) + ' €',
+                            summary.specificProductsOther.tva.toFixed(2) + ' €',
+                            summary.specificProductsOther.ttc.toFixed(2) + ' €'
+                        ]);
+                    } else {
+                        // Afficher une seule ligne
+                        vatSummaryData.push([
+                            specificProductCategoryName,
+                            summary.specificProducts.ht.toFixed(2) + ' €',
+                            summary.specificProducts.tva.toFixed(2) + ' €',
+                            summary.specificProducts.ttc.toFixed(2) + ' €'
+                        ]);
+                    }
                 }
                 
                 if (enableSpecificProductRate && summary.specificProducts.ttc > 0) {
