@@ -408,6 +408,12 @@
                         summary.total.tva.toFixed(2) + ' €',
                         summary.total.ttc.toFixed(2) + ' €'
                     ],
+                    [
+                        translate('Total Period (Excl. Gift Voucher Payments)'),
+                        (summary.total.ht - summary.appointmentsGiftVoucher.ht).toFixed(2) + ' €',
+                        summary.total.tva.toFixed(2) + ' €',
+                        (summary.total.ttc - summary.appointmentsGiftVoucher.ttc).toFixed(2) + ' €'
+                    ],
                     []
                 ];
                 
@@ -711,6 +717,7 @@
                 if (exportLanguage === 'fr') {
                     return {
                         'Total Period': 'Total Période',
+                        'Total Period (Excl. Gift Voucher Payments)': 'Total Période (Hors Paiements par Bon Cadeau)',
                         'Appointments': 'Rendez-vous',
                         'Appointments (Total)': 'Rendez-vous (Total)',
                         'Paid by Gift Voucher': 'Payés par Bon Cadeau',
@@ -969,6 +976,12 @@
                                                     <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.ht)}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.tva)}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.ttc)}</td>
+                                                </tr>
+                                                <tr className="bg-blue-50 border-b-2 border-blue-600">
+                                                    <td className="px-4 py-3 font-bold text-blue-900">{translate('Total Period (Excl. Gift Voucher Payments)')}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.ht - summary.appointmentsGiftVoucher.ht)}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.tva)}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.ttc - summary.appointmentsGiftVoucher.ttc)}</td>
                                                 </tr>
                                                 
                                                 {summary.appointments.ttc > 0 && (
