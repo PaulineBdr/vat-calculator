@@ -335,8 +335,13 @@
 
             const downloadExcel = () => {
                 if (data.length === 0) return;
-
-                const headers = exportLanguage === 'fr'
+            
+                const wb = XLSX.utils.book_new();
+                
+                // ========================================
+                // ONGLET 1: Full Details
+                // ========================================
+                const detailsHeaders = exportLanguage === 'fr'
                     ? ['paiement', 'Heure et jour', 'transaction', 'type', 'valeur_brute', 
                        'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'boutique', 'employé', 'nom_client', 
                        'info_additionnelle', 'compte_bancaire', 'arrivée_paiement_en_ligne', 'frais_paiement_en_ligne', 'url']
@@ -344,7 +349,7 @@
                        'VAT Rate', 'VAT Amount', 'VAT Category', 'shop', 'employee', 'customer_name', 
                        'additional_info', 'bank_account', 'online_payment_arrival', 'online_payment_fee', 'url'];
                 
-                const excelData = data.map(row => [
+                const detailsData = data.map(row => [
                     row.payment,
                     row['Heure et jour'] || row['datetime'] || row['Date and time'] || row['date_and_time'],
                     row.transaction,
@@ -362,20 +367,186 @@
                     row.online_payment_fee,
                     row.url
                 ]);
-
-                const ws = XLSX.utils.aoa_to_sheet([headers, ...excelData]);
-                
-                ws['!cols'] = [
+            
+                const wsDetails = XLSX.utils.aoa_to_sheet([detailsHeaders, ...detailsData]);
+                wsDetails['!cols'] = [
                     { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 12 },
                     { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 15 },
                     { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
                 ];
-
-                const wb = XLSX.utils.book_new();
-                const sheetName = exportLanguage === 'fr' ? 'Calculs TVA' : 'VAT Calculations';
-                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                XLSX.utils.book_append_sheet(wb, wsDetails, exportLanguage === 'fr' ? 'Détails Complets' : 'Full Details');
                 
-                const suffix = exportLanguage === 'fr' ? '_avec_TVA' : '_with_VAT';
+                // ========================================
+                // ONGLET 2: Summary VAT
+                // ========================================
+                const vatSummaryHeaders = exportLanguage === 'fr'
+                    ? ['Catégorie', 'HT', 'TVA', 'TTC']
+                    : ['Category', 'Excl. VAT', 'VAT', 'Incl. VAT'];
+                
+                const vatSummaryData = [
+                    vatSummaryHeaders,
+                    [
+                        translate('Total Period'),
+                        summary.total.ht.toFixed(2) + ' €',
+                        summary.total.tva.toFixed(2) + ' €',
+                        summary.total.ttc.toFixed(2) + ' €'
+                    ],
+                    []
+                ];
+                
+                if (summary.appointments.ttc > 0) {
+                    vatSummaryData.push([
+                        translate('Appointments (Total)'),
+                        summary.appointments.ht.toFixed(2) + ' €',
+                        summary.appointments.tva.toFixed(2) + ' €',
+                        summary.appointments.ttc.toFixed(2) + ' €'
+                    ]);
+                    if (summary.appointmentsGiftVoucher.ttc > 0) {
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Gift Voucher'),
+                            summary.appointmentsGiftVoucher.ht.toFixed(2) + ' €',
+                            summary.appointmentsGiftVoucher.tva.toFixed(2) + ' €',
+                            summary.appointmentsGiftVoucher.ttc.toFixed(2) + ' €'
+                        ]);
+                    }
+                    if (summary.appointmentsOther.ttc > 0) {
+                        vatSummaryData.push([
+                            '  ' + translate('Paid by Other Methods'),
+                            summary.appointmentsOther.ht.toFixed(2) + ' €',
+                            summary.appointmentsOther.tva.toFixed(2) + ' €',
+                            summary.appointmentsOther.ttc.toFixed(2) + ' €'
+                        ]);
+                    }
+                }
+                
+                if (summary.packages.ttc > 0) {
+                    vatSummaryData.push([
+                        translate('Packages'),
+                        summary.packages.ht.toFixed(2) + ' €',
+                        summary.packages.tva.toFixed(2) + ' €',
+                        summary.packages.ttc.toFixed(2) + ' €'
+                    ]);
+                }
+                
+                if (summary.products.ttc > 0) {
+                    vatSummaryData.push([
+                        translate('Products'),
+                        summary.products.ht.toFixed(2) + ' €',
+                        summary.products.tva.toFixed(2) + ' €',
+                        summary.products.ttc.toFixed(2) + ' €'
+                    ]);
+                }
+                
+                if (enableSpecificProductRate && summary.specificProducts.ttc > 0) {
+                    vatSummaryData.push([
+                        specificProductCategoryName,
+                        summary.specificProducts.ht.toFixed(2) + ' €',
+                        summary.specificProducts.tva.toFixed(2) + ' €',
+                        summary.specificProducts.ttc.toFixed(2) + ' €'
+                    ]);
+                }
+                
+                if (summary.giftVouchers.ttc > 0) {
+                    vatSummaryData.push([
+                        translate('Gift Vouchers'),
+                        summary.giftVouchers.ht.toFixed(2) + ' €',
+                        summary.giftVouchers.tva.toFixed(2) + ' €',
+                        summary.giftVouchers.ttc.toFixed(2) + ' €'
+                    ]);
+                }
+                
+                const wsVatSummary = XLSX.utils.aoa_to_sheet(vatSummaryData);
+                wsVatSummary['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+                XLSX.utils.book_append_sheet(wb, wsVatSummary, exportLanguage === 'fr' ? 'Récap TVA' : 'VAT Summary');
+                
+                // ========================================
+                // ONGLET 3: Summary Payments
+                // ========================================
+                if (paymentMethods) {
+                    const paymentSummaryHeaders = exportLanguage === 'fr' 
+                        ? ['Moyen de Paiement', 'Montant']
+                        : ['Payment Method', 'Amount'];
+                    
+                    const paymentSummaryData = [
+                        paymentSummaryHeaders,
+                        [exportLanguage === 'fr' ? 'Total Encaissé' : 'Total Collected', paymentMethods.total.toFixed(2) + ' €'],
+                        []
+                    ];
+                    
+                    if (paymentMethods.cash > 0) paymentSummaryData.push([translate('Cash'), paymentMethods.cash.toFixed(2) + ' €']);
+                    if (paymentMethods.instore_card > 0) paymentSummaryData.push([translate('Card (In-Store)'), paymentMethods.instore_card.toFixed(2) + ' €']);
+                    if (paymentMethods.online_card > 0) paymentSummaryData.push([translate('Card (Online)'), paymentMethods.online_card.toFixed(2) + ' €']);
+                    if (paymentMethods.bank_transfer > 0) paymentSummaryData.push([translate('Bank Transfer'), paymentMethods.bank_transfer.toFixed(2) + ' €']);
+                    if (paymentMethods.cheque > 0) paymentSummaryData.push([translate('Check'), paymentMethods.cheque.toFixed(2) + ' €']);
+                    if (paymentMethods.gift_voucher > 0) paymentSummaryData.push([translate('Gift Voucher Used'), paymentMethods.gift_voucher.toFixed(2) + ' €']);
+                    if (paymentMethods.other > 0) paymentSummaryData.push([translate('Other'), paymentMethods.other.toFixed(2) + ' €']);
+                    
+                    const wsPaymentSummary = XLSX.utils.aoa_to_sheet(paymentSummaryData);
+                    wsPaymentSummary['!cols'] = [{ wch: 30 }, { wch: 15 }];
+                    XLSX.utils.book_append_sheet(wb, wsPaymentSummary, exportLanguage === 'fr' ? 'Récap Paiements' : 'Payment Summary');
+                    
+                    // ========================================
+                    // ONGLETS 4+: Détail par moyen de paiement
+                    // ========================================
+                    const createPaymentSheet = (transactionTypes, sheetName) => {
+                        const filteredData = data.filter(row => {
+                            const transaction = row.transaction?.toLowerCase() || '';
+                            const grossValue = parseFloat(row.gross_value) || 0;
+                            return grossValue < 0 && transactionTypes.some(t => transaction === t);
+                        });
+                        
+                        if (filteredData.length === 0) return;
+                        
+                        const headers = exportLanguage === 'fr'
+                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Client', 'Boutique', 'Employé']
+                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'Customer', 'Shop', 'Employee'];
+                        
+                        const sheetData = [
+                            headers,
+                            ...filteredData.map(row => [
+                                row.payment,
+                                row['Heure et jour'] || row['datetime'] || '-',
+                                row.transaction,
+                                row.type,
+                                parseFloat(row.gross_value).toFixed(2) + ' €',
+                                row.customer_name || '-',
+                                row.shop || '-',
+                                row.employee || '-'
+                            ])
+                        ];
+                        
+                        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+                        ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 30 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 20 }];
+                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    };
+                    
+                    if (paymentMethods.cash > 0) {
+                        createPaymentSheet(['cash', 'en espèces', 'espèces'], exportLanguage === 'fr' ? 'Espèces' : 'Cash');
+                    }
+                    if (paymentMethods.instore_card > 0) {
+                        createPaymentSheet(['instore card', 'par carte au salon'], exportLanguage === 'fr' ? 'Carte Salon' : 'Card In-Store');
+                    }
+                    if (paymentMethods.online_card > 0) {
+                        createPaymentSheet(['online_card_payment', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
+                    }
+                    if (paymentMethods.bank_transfer > 0) {
+                        createPaymentSheet(['bank transfer', 'virement bancaire'], exportLanguage === 'fr' ? 'Virement' : 'Bank Transfer');
+                    }
+                    if (paymentMethods.cheque > 0) {
+                        createPaymentSheet(['cheque', 'chèque'], exportLanguage === 'fr' ? 'Chèque' : 'Check');
+                    }
+                    if (paymentMethods.gift_voucher > 0) {
+                        createPaymentSheet(['gift_voucher_applied', 'gift_vouhcher_applied'], exportLanguage === 'fr' ? 'Bon Cadeau' : 'Gift Voucher');
+                    }
+                    if (paymentMethods.other > 0) {
+                        createPaymentSheet(['other', 'autre'], exportLanguage === 'fr' ? 'Autre' : 'Other');
+                    }
+                }
+                
+                // ========================================
+                // TÉLÉCHARGEMENT
+                // ========================================
+                const suffix = exportLanguage === 'fr' ? '_Rapport_Complet' : '_Complete_Report';
                 XLSX.writeFile(wb, fileName.replace('.csv', '') + suffix + '.xlsx');
             };
 
