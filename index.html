@@ -830,6 +830,18 @@
                                 summary.appointmentsOther.ht += ht;
                             }
                         } else if (row.vat_category === 'Package' || row.vat_category === 'Package (Partial Gift Voucher)' || row.vat_category === 'Package (Paid by Gift Voucher)') {
+                            console.log('=== PACKAGE DETECTED ===');
+                            console.log('Category:', row.vat_category);
+                            console.log('Type:', row.type);
+                            console.log('TTC:', ttc);
+                            
+                            summary.packages.ttc += ttc;
+                            summary.packages.tva += tva;
+                            summary.packages.ht += ht;
+                            
+                            if (row.vat_category === 'Package (Paid by Gift Voucher)') {
+                                console.log('→ 100% Gift Voucher');
+                        } else if (row.vat_category === 'Package' || row.vat_category === 'Package (Partial Gift Voucher)' || row.vat_category === 'Package (Paid by Gift Voucher)') {
                             summary.packages.ttc += ttc;
                             summary.packages.tva += tva;
                             summary.packages.ht += ht;
