@@ -195,7 +195,8 @@
                                         // Calculate proportional gift voucher allocation
                                         let amountToTax = grossValue;
                                         
-                                        if (hasGiftVoucherPayment && totalAppointments > 0) {
+                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0) {
+                                            // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
                                             // Calculate proportion of this appointment
                                             const proportion = grossValue / totalAppointments;
                                             const giftVoucherPart = proportion * giftVoucherAmount;
