@@ -480,7 +480,7 @@
                         'Appointments': 'Rendez-vous',
                         'Appointments (Total)': 'Rendez-vous (Total)',
                         'Paid by Gift Voucher': 'Payés par Bon Cadeau',
-                        'Paid by Other Methods': 'Payés par Autres Moyens',
+                        'Paid by Other Methods': 'Payés via Mode de Paiement Standard (hors Bon Cadeau)',
                         'Packages': 'Forfaits',
                         'Appointments (Paid by Gift Voucher)': 'Rendez-vous (Payés par Bon Cadeau)',
                         'Products': 'Produits',
@@ -490,7 +490,10 @@
                         'Incl. VAT': 'TTC'
                     }[key] || key;
                 }
-                return key;
+                // Version anglaise
+                return {
+                    'Paid by Other Methods': 'Paid via Standard Payment Methods (excl. Gift Vouchers)'
+                }[key] || key;
             };
 
             return (
