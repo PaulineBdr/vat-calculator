@@ -683,14 +683,14 @@
                                                 {summary.appointments.ttc > 0 && (
                                                         <>
                                                             <tr className="bg-green-50 hover:bg-green-100 border-b border-green-200">
-                                                                <td className="px-4 py-3 text-green-800 font-bold">📅 {translate('Appointments')} (Total)</td>
+                                                                <td className="px-4 py-3 text-green-800 font-bold">📅 {translate('Appointments (Total)')}</td>
                                                                 <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.appointments.ht)}</td>
                                                                 <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.appointments.tva)}</td>
                                                                 <td className="px-4 py-3 text-right font-bold">{formatCurrency(summary.appointments.ttc)}</td>
                                                             </tr>
                                                             {summary.appointmentsGiftVoucher.ttc > 0 && (
                                                                 <tr className="bg-green-50 hover:bg-green-100">
-                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ Paid by Gift Voucher</td>
+                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ {translate('Paid by Gift Voucher')}</td>
                                                                     <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsGiftVoucher.ht)}</td>
                                                                     <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsGiftVoucher.tva)}</td>
                                                                     <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsGiftVoucher.ttc)}</td>
@@ -698,7 +698,7 @@
                                                             )}
                                                             {summary.appointmentsOther.ttc > 0 && (
                                                                 <tr className="bg-green-50 hover:bg-green-100">
-                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ Paid by Other Methods</td>
+                                                                    <td className="px-4 py-3 text-green-700 pl-8">↳ {translate('Paid by Other Methods')}</td>
                                                                     <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsOther.ht)}</td>
                                                                     <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsOther.tva)}</td>
                                                                     <td className="px-4 py-3 text-right text-sm">{formatCurrency(summary.appointmentsOther.ttc)}</td>
