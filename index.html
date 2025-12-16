@@ -508,8 +508,8 @@
                         
                         // Créer les headers
                         const headers = exportLanguage === 'fr'
-                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Taux TVA', 'Montant TVA', 'Catégorie TVA', 'Boutique', 'Employé', 'Client', 'URL']
-                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'VAT Rate', 'VAT Amount', 'VAT Category', 'Shop', 'Employee', 'Customer', 'URL'];
+                            ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Boutique', 'Employé', 'Client', 'Notes', 'Compte Bancaire', 'Arrivée Paiement En Ligne', 'Frais Paiement En Ligne', 'URL']
+                            : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'Shop', 'Employee', 'Customer', 'Notes', 'Bank Account', 'Online Payment Arrival', 'Online Payment Fee', 'URL'];
                         
                         const sheetData = [headers];
                         
@@ -534,12 +534,13 @@
                                         row.transaction || '-',
                                         row.type || '-',
                                         row.gross_value ? parseFloat(row.gross_value).toFixed(2) + ' €' : '-',
-                                        row.vat_rate ? row.vat_rate + '%' : '-',
-                                        row.vat_amount ? parseFloat(row.vat_amount).toFixed(2) + ' €' : '-',
-                                        translateCategory(row.vat_category) || '-',
                                         row.shop || '-',
                                         row.employee || '-',
                                         row.customer_name || '-',
+                                        row.additional_info || '-',
+                                        row.bank_account ? parseFloat(row.bank_account).toFixed(2) + ' €' : '-',
+                                        row.online_payment_arrival ? parseFloat(row.online_payment_arrival).toFixed(2) + ' €' : '-',
+                                        row.online_payment_fee ? parseFloat(row.online_payment_fee).toFixed(2) + ' €' : '-',
                                         row.url || '-'
                                     ]);
                                 }
@@ -553,12 +554,13 @@
                             { wch: 20 },  // Transaction
                             { wch: 35 },  // Type
                             { wch: 12 },  // Montant
-                            { wch: 10 },  // Taux TVA
-                            { wch: 12 },  // Montant TVA
-                            { wch: 20 },  // Catégorie TVA
                             { wch: 15 },  // Boutique
                             { wch: 20 },  // Employé
                             { wch: 25 },  // Client
+                            { wch: 30 },  // Notes
+                            { wch: 15 },  // Compte Bancaire
+                            { wch: 18 },  // Arrivée Paiement En Ligne
+                            { wch: 18 },  // Frais Paiement En Ligne
                             { wch: 60 }   // URL
                         ];
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
