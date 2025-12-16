@@ -218,25 +218,44 @@
                                         row.vat_amount = calculatedVAT;
                                         
                                         // Déterminer la catégorie et afficher le montant taxé uniquement si nécessaire
-                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
-                                            // TVA appliquée à l'achat du bon cadeau
-                                            if (amountToTax === 0) {
-                                                // 100% bon cadeau - Pas de TVA à déclarer au rdv
-                                                row.vat_rate = '';
-                                                row.vat_amount = '';
-                                                row.vat_category = 'Appointment (Paid by Gift Voucher)';
-                                            } else if (amountToTax < grossValue) {
-                                                // Paiement mixte : afficher le montant taxé
-                                                row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
-                                                row.vat_rate = vatRateAppointment;
-                                                row.vat_category = 'Appointment (Partial Gift Voucher)';
+                                        if (hasGiftVoucherPayment) {
+                                            if (vatRateGiftVoucher > 0) {
+                                                // TVA appliquée à l'achat du bon cadeau
+                                                if (amountToTax === 0) {
+                                                    // 100% bon cadeau - Pas de TVA à déclarer au rdv
+                                                    row.vat_rate = '';
+                                                    row.vat_amount = '';
+                                                    row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                                } else if (amountToTax < grossValue) {
+                                                    // Paiement mixte : afficher le montant taxé
+                                                    row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
+                                                    row.vat_rate = vatRateAppointment;
+                                                    row.vat_category = 'Appointment (Partial Gift Voucher)';
+                                                } else {
+                                                    // Pas de bon cadeau utilisé (ne devrait pas arriver)
+                                                    row.vat_rate = vatRateAppointment;
+                                                    row.vat_category = 'Appointment';
+                                                }
                                             } else {
-                                                // Pas de bon cadeau utilisé (ne devrait pas arriver)
+                                                // TVA à 0% sur bon cadeau = TVA au moment du rdv
+                                                // Mais on garde la catégorie pour le suivi
                                                 row.vat_rate = vatRateAppointment;
-                                                row.vat_category = 'Appointment';
+                                                
+                                                // Vérifier si c'est 100% BC ou mixte en regardant s'il y a d'autres paiements
+                                                const hasOtherPayment = group.some(r => {
+                                                    const t = r.transaction?.toLowerCase() || '';
+                                                    const gv = parseFloat(r.gross_value) || 0;
+                                                    return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                });
+                                                
+                                                if (hasOtherPayment) {
+                                                    row.vat_category = 'Appointment (Partial Gift Voucher)';
+                                                } else {
+                                                    row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                                }
                                             }
                                         } else {
-                                            // Pas de bon cadeau OU TVA à 0% sur bon cadeau (TVA au rdv)
+                                            // Pas de bon cadeau
                                             row.vat_rate = vatRateAppointment;
                                             row.vat_category = 'Appointment';
                                         }
@@ -407,37 +426,49 @@
                         summary.total.ht.toFixed(2) + ' €',
                         summary.total.tva.toFixed(2) + ' €',
                         summary.total.ttc.toFixed(2) + ' €'
-                    ],
-                    [
+                    ]
+                ];
+                
+                // Ajouter "Total hors BC" seulement si des BC ont été utilisés
+                if (summary.appointmentsGiftVoucher.ttc > 0) {
+                    vatSummaryData.push([
                         translate('Total Period (Excl. Gift Voucher Payments)'),
                         (summary.total.ht - summary.appointmentsGiftVoucher.ht).toFixed(2) + ' €',
                         summary.total.tva.toFixed(2) + ' €',
                         (summary.total.ttc - summary.appointmentsGiftVoucher.ttc).toFixed(2) + ' €'
-                    ],
-                    []
-                ];
+                    ]);
+                }
+                
+                vatSummaryData.push([]);
                 
                 if (summary.appointments.ttc > 0) {
-                    vatSummaryData.push([
-                        translate('Appointments (Total)'),
-                        summary.appointments.ht.toFixed(2) + ' €',
-                        summary.appointments.tva.toFixed(2) + ' €',
-                        summary.appointments.ttc.toFixed(2) + ' €'
-                    ]);
                     if (summary.appointmentsGiftVoucher.ttc > 0) {
+                        // Afficher le détail avec sous-catégories
+                        vatSummaryData.push([
+                            translate('Appointments (Total)'),
+                            summary.appointments.ht.toFixed(2) + ' €',
+                            summary.appointments.tva.toFixed(2) + ' €',
+                            summary.appointments.ttc.toFixed(2) + ' €'
+                        ]);
                         vatSummaryData.push([
                             '  ' + translate('Paid by Gift Voucher'),
                             summary.appointmentsGiftVoucher.ht.toFixed(2) + ' €',
                             summary.appointmentsGiftVoucher.tva.toFixed(2) + ' €',
                             summary.appointmentsGiftVoucher.ttc.toFixed(2) + ' €'
                         ]);
-                    }
-                    if (summary.appointmentsOther.ttc > 0) {
                         vatSummaryData.push([
                             '  ' + translate('Paid by Other Methods'),
                             summary.appointmentsOther.ht.toFixed(2) + ' €',
                             summary.appointmentsOther.tva.toFixed(2) + ' €',
                             summary.appointmentsOther.ttc.toFixed(2) + ' €'
+                        ]);
+                    } else {
+                        // Afficher une seule ligne "Appointments"
+                        vatSummaryData.push([
+                            translate('Appointments'),
+                            summary.appointments.ht.toFixed(2) + ' €',
+                            summary.appointments.tva.toFixed(2) + ' €',
+                            summary.appointments.ttc.toFixed(2) + ' €'
                         ]);
                     }
                 }
