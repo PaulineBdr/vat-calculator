@@ -195,7 +195,7 @@
                                         // Calculate proportional gift voucher allocation
                                         let amountToTax = grossValue;
                                         
-                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0) {
+                                        if (hasGiftVoucherPayment && totalAppointments > 0) {
                                             // Calculate proportion of this appointment
                                             const proportion = grossValue / totalAppointments;
                                             const giftVoucherPart = proportion * giftVoucherAmount;
@@ -218,7 +218,9 @@
                                         row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`; // Pour voir le montant taxé
                                         row.vat_rate = vatRateAppointment;
                                         
-                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && amountToTax < grossValue) {
+                                        if (hasGiftVoucherPayment && amountToTax === 0) {
+                                            row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                        } else if (hasGiftVoucherPayment && amountToTax < grossValue) {
                                             row.vat_category = 'Appointment (Partial Gift Voucher)';
                                         } else {
                                             row.vat_category = 'Appointment';
@@ -671,30 +673,33 @@
                         summary.total.tva += tva;
                         summary.total.ht += ht;
             
-                        if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                        if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)' || row.vat_category === 'Appointment (Paid by Gift Voucher)') {
                             summary.appointments.ttc += ttc;
                             summary.appointments.tva += tva;
                             summary.appointments.ht += ht;
                             
                             // Calculer la part payée par bon cadeau vs autre
-                            if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                            if (row.vat_category === 'Appointment (Paid by Gift Voucher)') {
+                                // 100% payé par bon cadeau
+                                summary.appointmentsGiftVoucher.ttc += ttc;
+                                summary.appointmentsGiftVoucher.tva += 0;
+                                summary.appointmentsGiftVoucher.ht += ttc; // Pas de TVA
+                            } else if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
                                 // Extraire le montant taxé depuis le texte [taxé:XX.XX€]
                                 const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
                                 if (match) {
                                     const amountToTax = parseFloat(match[1]);
                                     const giftVoucherPart = ttc - amountToTax;
-                                    const giftVoucherHT = giftVoucherPart - 0; // Pas de TVA sur la part bon cadeau
                                     
-                                    // Part bon cadeau
+                                    // Part bon cadeau (pas de TVA)
                                     summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
                                     summary.appointmentsGiftVoucher.tva += 0;
-                                    summary.appointmentsGiftVoucher.ht += giftVoucherHT;
+                                    summary.appointmentsGiftVoucher.ht += giftVoucherPart;
                                     
-                                    // Part autre paiement
-                                    const otherPart = amountToTax;
-                                    summary.appointmentsOther.ttc += otherPart;
+                                    // Part autre paiement (avec TVA)
+                                    summary.appointmentsOther.ttc += amountToTax;
                                     summary.appointmentsOther.tva += tva;
-                                    summary.appointmentsOther.ht += otherPart - tva;
+                                    summary.appointmentsOther.ht += amountToTax - tva;
                                 }
                             } else {
                                 // Appointment normal (pas de bon cadeau)
@@ -702,6 +707,7 @@
                                 summary.appointmentsOther.tva += tva;
                                 summary.appointmentsOther.ht += ht;
                             }
+                        }
                         } else if (row.vat_category === 'Package') {
                             summary.packages.ttc += ttc;
                             summary.packages.tva += tva;
