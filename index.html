@@ -241,7 +241,15 @@
                                                 // Mais on garde la catégorie pour le suivi
                                                 row.vat_rate = vatRateAppointment;
                                                 
-                                                // Vérifier si c'est 100% BC ou mixte en regardant s'il y a d'autres paiements
+                                                // Calculer la part bon cadeau pour le récapitulatif
+                                                if (totalAppointments > 0) {
+                                                    const proportion = grossValue / totalAppointments;
+                                                    const giftVoucherPart = proportion * giftVoucherAmount;
+                                                    row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
+                                                    row._amountToTax = grossValue - giftVoucherPart;
+                                                }
+                                                
+                                                // Vérifier si c'est 100% BC ou mixte
                                                 const hasOtherPayment = group.some(r => {
                                                     const t = r.transaction?.toLowerCase() || '';
                                                     const gv = parseFloat(r.gross_value) || 0;
@@ -302,6 +310,15 @@
                                                     }
                                                 } else {
                                                     row.vat_rate = vatRateAppointment;
+                                                    
+                                                    // Calculer la part bon cadeau pour le récapitulatif
+                                                    if (totalProducts > 0) {
+                                                        const proportion = grossValue / totalProducts;
+                                                        const giftVoucherPart = proportion * giftVoucherAmount;
+                                                        row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
+                                                        row._amountToTax = grossValue - giftVoucherPart;
+                                                    }
+                                                    
                                                     const hasOtherPayment = group.some(r => {
                                                         const t = r.transaction?.toLowerCase() || '';
                                                         const gv = parseFloat(r.gross_value) || 0;
@@ -343,6 +360,15 @@
                                                             }
                                                         } else {
                                                             row.vat_rate = vatRateProductSpecific;
+                                                            
+                                                            // Calculer la part bon cadeau pour le récapitulatif
+                                                            if (totalProducts > 0) {
+                                                                const proportion = grossValue / totalProducts;
+                                                                const giftVoucherPart = proportion * giftVoucherAmount;
+                                                                row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
+                                                                row._amountToTax = grossValue - giftVoucherPart;
+                                                            }
+                                                            
                                                             const hasOtherPayment = group.some(r => {
                                                                 const t = r.transaction?.toLowerCase() || '';
                                                                 const gv = parseFloat(r.gross_value) || 0;
@@ -374,6 +400,15 @@
                                                             }
                                                         } else {
                                                             row.vat_rate = vatRateProduct;
+                                                            
+                                                            // Calculer la part bon cadeau pour le récapitulatif
+                                                            if (totalProducts > 0) {
+                                                                const proportion = grossValue / totalProducts;
+                                                                const giftVoucherPart = proportion * giftVoucherAmount;
+                                                                row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
+                                                                row._amountToTax = grossValue - giftVoucherPart;
+                                                            }
+                                                            
                                                             const hasOtherPayment = group.some(r => {
                                                                 const t = r.transaction?.toLowerCase() || '';
                                                                 const gv = parseFloat(r.gross_value) || 0;
@@ -807,11 +842,21 @@
                                 summary.appointmentsGiftVoucher.tva += 0;
                                 summary.appointmentsGiftVoucher.ht += ttc; // Pas de TVA
                             } else if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
-                                // Extraire le montant taxé depuis le texte [taxé:XX.XX€]
+                                // Extraire le montant taxé depuis le texte [taxé:XX.XX€] OU depuis la propriété cachée
+                                let amountToTax = 0;
+                                let giftVoucherPart = 0;
+                                
                                 const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
                                 if (match) {
-                                    const amountToTax = parseFloat(match[1]);
-                                    const giftVoucherPart = ttc - amountToTax;
+                                    amountToTax = parseFloat(match[1]);
+                                    giftVoucherPart = ttc - amountToTax;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    // Utiliser les valeurs stockées
+                                    giftVoucherPart = row._giftVoucherPart;
+                                    amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                }
+                                
+                                if (giftVoucherPart > 0) {
                                     
                                     // Part bon cadeau (pas de TVA)
                                     summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
@@ -846,11 +891,19 @@
                                 summary.packagesGiftVoucher.tva += 0;
                                 summary.packagesGiftVoucher.ht += ttc;
                             } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
+                                let amountToTax = 0;
+                                let giftVoucherPart = 0;
+                                
                                 const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
                                 if (match) {
-                                    const amountToTax = parseFloat(match[1]);
-                                    const giftVoucherPart = ttc - amountToTax;
-                                    
+                                    amountToTax = parseFloat(match[1]);
+                                    giftVoucherPart = ttc - amountToTax;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    giftVoucherPart = row._giftVoucherPart;
+                                    amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                }
+                                
+                                if (giftVoucherPart > 0) {
                                     summary.packagesGiftVoucher.ttc += giftVoucherPart;
                                     summary.packagesGiftVoucher.tva += 0;
                                     summary.packagesGiftVoucher.ht += giftVoucherPart;
@@ -859,6 +912,7 @@
                                     summary.packagesOther.tva += tva;
                                     summary.packagesOther.ht += amountToTax - tva;
                                 }
+
                             } else {
                                 summary.packagesOther.ttc += ttc;
                                 summary.packagesOther.tva += tva;
@@ -874,11 +928,19 @@
                                 summary.productsGiftVoucher.tva += 0;
                                 summary.productsGiftVoucher.ht += ttc;
                             } else if (row.vat_category === 'Product (Partial Gift Voucher)') {
+                                let amountToTax = 0;
+                                let giftVoucherPart = 0;
+                                
                                 const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
                                 if (match) {
-                                    const amountToTax = parseFloat(match[1]);
-                                    const giftVoucherPart = ttc - amountToTax;
-                                    
+                                    amountToTax = parseFloat(match[1]);
+                                    giftVoucherPart = ttc - amountToTax;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    giftVoucherPart = row._giftVoucherPart;
+                                    amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                }
+                                
+                                if (giftVoucherPart > 0) {
                                     summary.productsGiftVoucher.ttc += giftVoucherPart;
                                     summary.productsGiftVoucher.tva += 0;
                                     summary.productsGiftVoucher.ht += giftVoucherPart;
@@ -902,11 +964,19 @@
                                 summary.specificProductsGiftVoucher.tva += 0;
                                 summary.specificProductsGiftVoucher.ht += ttc;
                             } else if (row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)') {
+                                let amountToTax = 0;
+                                let giftVoucherPart = 0;
+                                
                                 const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
                                 if (match) {
-                                    const amountToTax = parseFloat(match[1]);
-                                    const giftVoucherPart = ttc - amountToTax;
-                                    
+                                    amountToTax = parseFloat(match[1]);
+                                    giftVoucherPart = ttc - amountToTax;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    giftVoucherPart = row._giftVoucherPart;
+                                    amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                }
+                                
+                                if (giftVoucherPart > 0) {
                                     summary.specificProductsGiftVoucher.ttc += giftVoucherPart;
                                     summary.specificProductsGiftVoucher.tva += 0;
                                     summary.specificProductsGiftVoucher.ht += giftVoucherPart;
