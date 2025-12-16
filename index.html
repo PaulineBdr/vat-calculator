@@ -407,6 +407,8 @@
                     specificProducts: { ht: 0, tva: 0, ttc: 0 },
                     giftVouchers: { ht: 0, tva: 0, ttc: 0 }
                 };
+                const summary = data.length > 0 ? calculateSummary() : null;
+                const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
 
                    data.forEach(row => {
                         if (row.vat_amount && row.vat_rate !== '') {
@@ -488,12 +490,63 @@
                         'Excl. VAT': 'HT',
                         'VAT': 'TVA',
                         'Incl. VAT': 'TTC'
+                        'Payment Methods Breakdown': 'Répartition par Moyen de Paiement',
+                        'Total Collected': 'Total Encaissé',
+                        'Cash': 'Espèces',
+                        'Card (In-Store)': 'Carte au Salon',
+                        'Bank Transfer': 'Virement Bancaire',
+                        'Check': 'Chèque',
+                        'Other': 'Autre',
+                        'Gift Voucher Used': 'Bon Cadeau Utilisé',
+                        'Card (Online)': 'Carte en Ligne'
                     }[key] || key;
                 }
                 // Version anglaise
                 return {
                     'Paid by Other Methods': 'Paid via Standard Payment Methods (excl. Gift Vouchers)'
                 }[key] || key;
+            };
+                const calculatePaymentMethods = () => {
+                    const payments = {
+                        cash: 0,
+                        instore_card: 0,
+                        bank_transfer: 0,
+                        cheque: 0,
+                        other: 0,
+                        gift_voucher: 0,
+                        online_card: 0,
+                        total: 0
+                    };
+                    
+                    data.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        
+                        // Ne compter que les paiements (valeurs négatives)
+                        if (grossValue < 0) {
+                            const amount = Math.abs(grossValue);
+                            
+                            if (transaction === 'cash') {
+                                payments.cash += amount;
+                            } else if (transaction === 'instore card') {
+                                payments.instore_card += amount;
+                            } else if (transaction === 'bank transfer') {
+                                payments.bank_transfer += amount;
+                            } else if (transaction === 'cheque') {
+                                payments.cheque += amount;
+                            } else if (transaction === 'other') {
+                                payments.other += amount;
+                            } else if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
+                                payments.gift_voucher += amount;
+                            } else if (transaction === 'online_card_payment') {
+                                payments.online_card += amount;
+                            }
+                            
+                            payments.total += amount;
+                        }
+                    });
+                    
+                    return payments;
             };
 
             return (
@@ -749,6 +802,78 @@
                                         </table>
                                     </div>
                                 </div>
+                                
+                                {data.length > 0 && paymentMethods && (
+                                    <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-4">💳 {translate('Payment Methods Breakdown')}</h2>
+                                        
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-purple-600 text-white">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left">Moyen de Paiement</th>
+                                                        <th className="px-4 py-3 text-right">Montant</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr className="bg-purple-50 border-b-2 border-purple-600">
+                                                        <td className="px-4 py-3 font-bold text-purple-900">{translate('Total Collected')}</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-purple-900">{formatCurrency(paymentMethods.total)}</td>
+                                                    </tr>
+                                                    
+                                                    {paymentMethods.cash > 0 && (
+                                                        <tr className="bg-gray-50 hover:bg-gray-100">
+                                                            <td className="px-4 py-3 text-gray-800">💵 {translate('Cash')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.cash)}</td>
+                                                        </tr>
+                                                    )}
+                                                    
+                                                    {paymentMethods.instore_card > 0 && (
+                                                        <tr className="bg-gray-50 hover:bg-gray-100">
+                                                            <td className="px-4 py-3 text-gray-800">💳 {translate('Card (In-Store)')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.instore_card)}</td>
+                                                        </tr>
+                                                    )}
+                                                    
+                                                    {paymentMethods.online_card > 0 && (
+                                                        <tr className="bg-gray-50 hover:bg-gray-100">
+                                                            <td className="px-4 py-3 text-gray-800">🌐 {translate('Card (Online)')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.online_card)}</td>
+                                                        </tr>
+                                                    )}
+                                                    
+                                                    {paymentMethods.bank_transfer > 0 && (
+                                                        <tr className="bg-gray-50 hover:bg-gray-100">
+                                                            <td className="px-4 py-3 text-gray-800">🏦 {translate('Bank Transfer')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.bank_transfer)}</td>
+                                                        </tr>
+                                                    )}
+                                                    
+                                                    {paymentMethods.cheque > 0 && (
+                                                        <tr className="bg-gray-50 hover:bg-gray-100">
+                                                            <td className="px-4 py-3 text-gray-800">📝 {translate('Check')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.cheque)}</td>
+                                                        </tr>
+                                                    )}
+                                                    
+                                                    {paymentMethods.gift_voucher > 0 && (
+                                                        <tr className="bg-purple-50 hover:bg-purple-100">
+                                                            <td className="px-4 py-3 text-purple-800">🎁 {translate('Gift Voucher Used')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.gift_voucher)}</td>
+                                                        </tr>
+                                                    )}
+                                                    
+                                                    {paymentMethods.other > 0 && (
+                                                        <tr className="bg-gray-50 hover:bg-gray-100">
+                                                            <td className="px-4 py-3 text-gray-800">❓ {translate('Other')}</td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.other)}</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="bg-white rounded-lg shadow-lg overflow-hidden print-section">
                                     <div className="overflow-x-auto">
