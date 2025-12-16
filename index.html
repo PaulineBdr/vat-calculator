@@ -471,8 +471,7 @@
             
                 return summary;
             };
-            const summary = data.length > 0 ? calculateSummary() : null;
-            const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
+            
             const translate = (key) => {
                 if (exportLanguage === 'fr') {
                     return {
@@ -546,6 +545,9 @@
                     
                     return payments;
             };
+            
+            const summary = data.length > 0 ? calculateSummary() : null;
+            const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
