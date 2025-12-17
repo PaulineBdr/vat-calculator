@@ -1088,37 +1088,37 @@
             };
             
             const translate = (key) => {
-                if (exportLanguage === 'fr') {
+                    if (exportLanguage === 'fr') {
+                        return {
+                            'Total Period': 'Total Période',
+                            'Total Period (Excl. Gift Voucher Payments)': 'Total Période (Hors Paiements par Bon Cadeau)',
+                            'Appointments': 'Rendez-vous',
+                            'Appointments (Total)': 'Rendez-vous (Total)',
+                            'Paid by Gift Voucher': 'Payés par Bon Cadeau',
+                            'Paid by Other Methods': 'Payés via Mode de Paiement Standard (hors Bon Cadeau)',
+                            'Packages': 'Forfaits',
+                            'Appointments (Paid by Gift Voucher)': 'Rendez-vous (Payés par Bon Cadeau)',
+                            'Products': 'Produits',
+                            'Gift Vouchers': 'Bons Cadeaux',
+                            'Excl. VAT': 'HT',
+                            'VAT': 'TVA',
+                            'Incl. VAT': 'TTC',
+                            'Payment Methods Breakdown': 'Répartition par Moyen de Paiement',
+                            'Total Collected': 'Total Encaissé',
+                            'Cash': 'Espèces',
+                            'Card (In-Store)': 'Carte au Salon',
+                            'Bank Transfer': 'Virement Bancaire',
+                            'Check': 'Chèque',
+                            'Other': 'Autre',
+                            'Gift Voucher Used': 'Bon Cadeau Utilisé',
+                            'Card (Online)': 'Carte en Ligne'
+                        }[key] || key;
+                    }
+                    // Version anglaise
                     return {
-                        'Total Period': 'Total Période',
-                        'Total Period (Excl. Gift Voucher Payments)': 'Total Période (Hors Paiements par Bon Cadeau)',
-                        'Appointments': 'Rendez-vous',
-                        'Appointments (Total)': 'Rendez-vous (Total)',
-                        'Paid by Gift Voucher': 'Payés par Bon Cadeau',
-                        'Paid by Other Methods': 'Payés via Mode de Paiement Standard (hors Bon Cadeau)',
-                        'Packages': 'Forfaits',
-                        'Appointments (Paid by Gift Voucher)': 'Rendez-vous (Payés par Bon Cadeau)',
-                        'Products': 'Produits',
-                        'Gift Vouchers': 'Bons Cadeaux',
-                        'Excl. VAT': 'HT',
-                        'VAT': 'TVA',
-                        'Incl. VAT': 'TTC',
-                        'Payment Methods Breakdown': 'Répartition par Moyen de Paiement',
-                        'Total Collected': 'Total Encaissé',
-                        'Cash': 'Espèces',
-                        'Card (In-Store)': 'Carte au Salon',
-                        'Bank Transfer': 'Virement Bancaire',
-                        'Check': 'Chèque',
-                        'Other': 'Autre',
-                        'Gift Voucher Used': 'Bon Cadeau Utilisé',
-                        'Card (Online)': 'Carte en Ligne'
+                        'Paid by Other Methods': 'Paid via Standard Payment Methods (excl. Gift Vouchers)'
                     }[key] || key;
-                }
-                // Version anglaise
-                return {
-                    'Paid by Other Methods': 'Paid via Standard Payment Methods (excl. Gift Vouchers)'
-                }[key] || key;
-            };
+                };
                 const calculatePaymentMethods = () => {
                     const payments = {
                         cash: 0,
@@ -1367,10 +1367,10 @@
                                         <table className="w-full">
                                             <thead className="bg-indigo-600 text-white">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">Catégorie</th>
-                                                    <th className="px-4 py-3 text-right">{translate('Excl. VAT')}</th>
-                                                    <th className="px-4 py-3 text-right">{translate('VAT')}</th>
-                                                    <th className="px-4 py-3 text-right">{translate('Incl. VAT')}</th>
+                                                    <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Catégorie' : 'Category'}</th>
+                                                    <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'HT' : 'Excl. VAT'}</th>
+                                                    <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'TVA' : 'VAT'}</th>
+                                                    <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'TTC' : 'Incl. VAT'}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1540,14 +1540,14 @@
                                 
                                 {data.length > 0 && paymentMethods && (
                                     <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
-                                        <h2 className="text-2xl font-bold text-gray-800 mb-4">💳 {translate('Payment Methods Breakdown')}</h2>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-4">💳 {exportLanguage === 'fr' ? 'Répartition par Moyen de Paiement' : 'Payment Methods Breakdown'}</h2>
                                         
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
                                                 <thead className="bg-purple-600 text-white">
                                                     <tr>
-                                                        <th className="px-4 py-3 text-left">Moyen de Paiement</th>
-                                                        <th className="px-4 py-3 text-right">Montant</th>
+                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Moyen de Paiement' : 'Payment Method'}</th>
+                                                        <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'Montant' : 'Amount'}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
