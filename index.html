@@ -873,13 +873,14 @@
                 const pendingPaymentsData = calculatePendingPayments();
                 if (pendingPaymentsData.length > 0) {
                     const pendingHeaders = exportLanguage === 'fr'
-                        ? ['ID Paiement', 'Date', 'Client', 'Boutique', 'Employé', 'Services/Produits', 'Total Dû', 'Payé', 'Reste à Payer', 'URL']
-                        : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Services/Products', 'Total Due', 'Paid', 'Amount Pending', 'URL'];
+                        ? ['ID Paiement', 'Date', 'Client', 'Boutique', 'Employé', 'Services/Produits', 'Notes', 'Total Dû', 'Payé', 'Reste à Payer', 'URL']
+                        : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Services/Products', 'Notes', 'Total Due', 'Paid', 'Amount Pending', 'URL'];
                     
                     const pendingData = [pendingHeaders];
                     
                     pendingPaymentsData.forEach(payment => {
                         const itemsDescription = payment.items.map(item => item.type).join(', ');
+                        const notes = payment.items[0]?.additional_info || '';
                         pendingData.push([
                             payment.paymentId,
                             payment.date,
@@ -887,6 +888,7 @@
                             payment.shop,
                             payment.employee,
                             itemsDescription,
+                            notes,
                             payment.totalDue.toFixed(2) + ' €',
                             payment.totalPaid.toFixed(2) + ' €',
                             payment.amountPending.toFixed(2) + ' €',
@@ -902,13 +904,12 @@
                         { wch: 20 },  // Boutique
                         { wch: 20 },  // Employé
                         { wch: 50 },  // Services/Produits
+                        { wch: 30 },  // Notes
                         { wch: 12 },  // Total Dû
                         { wch: 12 },  // Payé
                         { wch: 15 },  // Reste à Payer
                         { wch: 60 }   // URL
                     ];
-                    XLSX.utils.book_append_sheet(wb, wsPending, exportLanguage === 'fr' ? 'En Attente' : 'Pending');
-                }
         
                 // ========================================
                 // TÉLÉCHARGEMENT
