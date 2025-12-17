@@ -851,8 +851,8 @@
                     if (paymentMethods.instore_card > 0) {
                         createPaymentSheet(['instore card', 'par carte au salon'], exportLanguage === 'fr' ? 'Carte Salon' : 'Card In-Store');
                     }
-                    if (paymentMethods.online_card > 0) {
-                        createPaymentSheet(['online_card', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
+                    if (paymentMethods.online_card_payment > 0) {
+                        createPaymentSheet(['online_card_payment', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
                     }
                     if (paymentMethods.bank_transfer > 0) {
                         createPaymentSheet(['bank transfer', 'virement bancaire'], exportLanguage === 'fr' ? 'Virement' : 'Bank Transfer');
