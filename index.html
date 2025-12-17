@@ -760,7 +760,7 @@
                         const refundedPayments = new Set();
                         data.forEach(row => {
                             const transaction = (row.transaction || '').toLowerCase().trim();
-                            if (transaction.includes('refunded') || transaction.includes('remboursement')) {
+                            if (transaction.includes('refund') || transaction.includes('remboursement')) {
                                 refundedPayments.add(String(row.payment));
                             }
                         });
@@ -798,12 +798,12 @@
                                 // 1. C'est un appointment (service)
                                 // 2. C'est un product_sale (produit/forfait)
                                 // 3. C'est le type de paiement recherché (négatif OU positif si remboursé/annulé)
-                                // 4. C'est une ligne "refunded"
+                                // 4. C'est une ligne "refund"
                                 // 5. C'est la ligne URL
                                 const isAppointment = transaction === 'appointment';
                                 const isProductSale = transaction === 'product_sale';
                                 const isMatchingPayment = transactionTypes.some(t => transaction === t.toLowerCase().trim()) && (grossValue !== 0);
-                                const isRefundLine = transaction.includes('refunded') || transaction.includes('remboursement');
+                                const isRefundLine = transaction.includes('refund') || transaction.includes('remboursement');
                                 const isUrlLine = !transaction && !grossValue && row.url;
                                 
                                 if (isAppointment || isProductSale || isMatchingPayment || isRefundLine || isUrlLine) {
