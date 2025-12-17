@@ -756,7 +756,7 @@
                     // ONGLETS 4+: Détail par moyen de paiement
                     // ========================================
                     const createPaymentSheet = (transactionTypes, sheetName) => {
-                        // Identifier les paiements remboursés
+                        // Identifier les paiements remboursés (pour affichage uniquement)
                         const refundedPayments = new Set();
                         data.forEach(row => {
                             const transaction = (row.transaction || '').toLowerCase().trim();
@@ -765,15 +765,15 @@
                             }
                         });
                         
-                        // Trouver tous les payment IDs qui ont ce type de paiement
+                        // Trouver tous les payment IDs qui ont ce type de paiement (INCLURE les remboursés pour Excel)
                         const matchingPaymentIds = new Set();
                         
                         data.forEach(row => {
                             const transaction = (row.transaction || '').toLowerCase().trim();
                             const grossValue = parseFloat(row.gross_value) || 0;
                             
-                            // Si c'est un paiement négatif qui correspond au type recherché
-                            if (grossValue < 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim())) {
+                            // Si c'est un paiement (négatif OU positif) qui correspond au type recherché
+                            if (grossValue !== 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim())) {
                                 matchingPaymentIds.add(String(row.payment));
                             }
                         });
