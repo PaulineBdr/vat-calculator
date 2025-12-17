@@ -845,25 +845,33 @@
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
                     };
                     
-                    if (paymentMethods.cash > 0) {
+                    // Créer les onglets même si montant = 0 (pour voir les remboursements)
+                    const hasTransaction = (transactionTypes) => {
+                        return data.some(row => {
+                            const transaction = (row.transaction || '').toLowerCase().trim();
+                            return transactionTypes.some(t => transaction.includes(t.toLowerCase().trim()));
+                        });
+                    };
+                    
+                    if (hasTransaction(['cash', 'en espèces', 'espèces'])) {
                         createPaymentSheet(['cash', 'en espèces', 'espèces'], exportLanguage === 'fr' ? 'Espèces' : 'Cash');
                     }
-                    if (paymentMethods.instore_card > 0) {
+                    if (hasTransaction(['instore card', 'par carte au salon'])) {
                         createPaymentSheet(['instore card', 'par carte au salon'], exportLanguage === 'fr' ? 'Carte Salon' : 'Card In-Store');
                     }
-                    if (paymentMethods.online_card_payment > 0) {
-                        createPaymentSheet(['online_card_payment', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
+                    if (hasTransaction(['online_card', 'paiement par carte en ligne'])) {
+                        createPaymentSheet(['online_card', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
                     }
-                    if (paymentMethods.bank_transfer > 0) {
+                    if (hasTransaction(['bank transfer', 'virement bancaire'])) {
                         createPaymentSheet(['bank transfer', 'virement bancaire'], exportLanguage === 'fr' ? 'Virement' : 'Bank Transfer');
                     }
-                    if (paymentMethods.cheque > 0) {
+                    if (hasTransaction(['cheque', 'chèque'])) {
                         createPaymentSheet(['cheque', 'chèque'], exportLanguage === 'fr' ? 'Chèque' : 'Check');
                     }
-                    if (paymentMethods.gift_voucher > 0) {
+                    if (hasTransaction(['gift_voucher_applied', 'gift_vouhcher_applied'])) {
                         createPaymentSheet(['gift_voucher_applied', 'gift_vouhcher_applied'], exportLanguage === 'fr' ? 'Bon Cadeau' : 'Gift Voucher');
                     }
-                    if (paymentMethods.other > 0) {
+                    if (hasTransaction(['other', 'autre'])) {
                         createPaymentSheet(['other', 'autre'], exportLanguage === 'fr' ? 'Autre' : 'Other');
                     }
                 }
