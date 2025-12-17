@@ -867,7 +867,49 @@
                         createPaymentSheet(['other', 'autre'], exportLanguage === 'fr' ? 'Autre' : 'Other');
                     }
                 }
-                
+                // ========================================
+                // ONGLET: Paiements en Attente
+                // ========================================
+                const pendingPaymentsData = calculatePendingPayments();
+                if (pendingPaymentsData.length > 0) {
+                    const pendingHeaders = exportLanguage === 'fr'
+                        ? ['ID Paiement', 'Date', 'Client', 'Boutique', 'Employé', 'Services/Produits', 'Total Dû', 'Payé', 'Reste à Payer', 'URL']
+                        : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Services/Products', 'Total Due', 'Paid', 'Amount Pending', 'URL'];
+                    
+                    const pendingData = [pendingHeaders];
+                    
+                    pendingPaymentsData.forEach(payment => {
+                        const itemsDescription = payment.items.map(item => item.type).join(', ');
+                        pendingData.push([
+                            payment.paymentId,
+                            payment.date,
+                            payment.customer,
+                            payment.shop,
+                            payment.employee,
+                            itemsDescription,
+                            payment.totalDue.toFixed(2) + ' €',
+                            payment.totalPaid.toFixed(2) + ' €',
+                            payment.amountPending.toFixed(2) + ' €',
+                            payment.url
+                        ]);
+                    });
+                    
+                    const wsPending = XLSX.utils.aoa_to_sheet(pendingData);
+                    wsPending['!cols'] = [
+                        { wch: 12 },  // ID
+                        { wch: 18 },  // Date
+                        { wch: 25 },  // Client
+                        { wch: 20 },  // Boutique
+                        { wch: 20 },  // Employé
+                        { wch: 50 },  // Services/Produits
+                        { wch: 12 },  // Total Dû
+                        { wch: 12 },  // Payé
+                        { wch: 15 },  // Reste à Payer
+                        { wch: 60 }   // URL
+                    ];
+                    XLSX.utils.book_append_sheet(wb, wsPending, exportLanguage === 'fr' ? 'En Attente' : 'Pending');
+                }
+        
                 // ========================================
                 // TÉLÉCHARGEMENT
                 // ========================================
@@ -1190,9 +1232,104 @@
                     
                     return payments;
                 };
-            
+                const calculatePendingPayments = () => {
+                const pendingPayments = [];
+                const paymentGroups = {};
+                
+                // Grouper par payment ID
+                data.forEach(row => {
+                    const paymentId = row.payment;
+                    if (!paymentGroups[paymentId]) {
+                        paymentGroups[paymentId] = [];
+                    }
+                    paymentGroups[paymentId].push(row);
+                });
+                
+                // Identifier les paiements remboursés
+                const refundedPayments = new Set();
+                data.forEach(row => {
+                    const transaction = row.transaction?.toLowerCase() || '';
+                    if (transaction.includes('refund') || transaction.includes('remboursement')) {
+                        refundedPayments.add(row.payment);
+                    }
+                });
+                
+                // Analyser chaque groupe de paiement
+                Object.keys(paymentGroups).forEach(paymentId => {
+                    const group = paymentGroups[paymentId];
+                    
+                    // Ignorer les paiements remboursés
+                    if (refundedPayments.has(paymentId)) {
+                        return;
+                    }
+                    
+                    // Calculer le total des services/produits (positif)
+                    let totalDue = 0;
+                    const items = [];
+                    
+                    group.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        
+                        if ((transaction === 'appointment' || transaction === 'product_sale') && grossValue > 0) {
+                            totalDue += grossValue;
+                            items.push(row);
+                        }
+                    });
+                    
+                    // Calculer le total des paiements (somme algébrique pour gérer les annulations)
+                    let totalPaid = 0;
+                    const paymentsByType = {};
+                    
+                    group.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        
+                        // Tous les paiements (négatifs et positifs si annulation)
+                        if (transaction !== 'appointment' && 
+                            transaction !== 'product_sale' && 
+                            grossValue !== 0 &&
+                            !transaction.includes('refund')) {
+                            
+                            if (!paymentsByType[transaction]) {
+                                paymentsByType[transaction] = 0;
+                            }
+                            paymentsByType[transaction] += grossValue;
+                        }
+                    });
+                    
+                    // Calculer le total réellement payé (somme des valeurs négatives nettes)
+                    Object.values(paymentsByType).forEach(amount => {
+                        if (amount < 0) {
+                            totalPaid += Math.abs(amount);
+                        }
+                    });
+                    
+                    // Si le montant payé est inférieur au montant dû
+                    const amountPending = totalDue - totalPaid;
+                    
+                    if (amountPending > 0.01) { // Seuil de 1 centime pour éviter les erreurs d'arrondi
+                        pendingPayments.push({
+                            paymentId: paymentId,
+                            totalDue: totalDue,
+                            totalPaid: totalPaid,
+                            amountPending: amountPending,
+                            items: items,
+                            date: items[0]?.['Heure et jour'] || items[0]?.['datetime'] || items[0]?.['Date and time'] || '',
+                            customer: items[0]?.customer_name || '',
+                            shop: items[0]?.shop || '',
+                            employee: items[0]?.employee || '',
+                            url: group.find(r => r.url)?.url || ''
+                        });
+                    }
+                });
+                
+                return pendingPayments;
+            };
+                    
             const summary = data.length > 0 ? calculateSummary() : null;
             const paymentMethods = data.length > 0 ? calculatePaymentMethods() : null;
+            const pendingPayments = data.length > 0 ? calculatePendingPayments() : null;
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -1604,6 +1741,49 @@
                                                             <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.other)}</td>
                                                         </tr>
                                                     )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                
+                                {data.length > 0 && pendingPayments && pendingPayments.length > 0 && (
+                                    <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-4">⏳ {exportLanguage === 'fr' ? 'Paiements en Attente' : 'Pending Payments'}</h2>
+                                        
+                                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                                            <p className="text-sm text-yellow-800">
+                                                {exportLanguage === 'fr' 
+                                                    ? '⚠️ Ces transactions ont des paiements incomplets ou aucun paiement enregistré. Vérifiez votre régime de TVA pour savoir si vous devez ajuster vos déclarations.'
+                                                    : '⚠️ These transactions have incomplete or no recorded payments. Check your VAT regime to determine if you need to adjust your declarations.'}
+                                            </p>
+                                        </div>
+                                        
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-orange-600 text-white">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'ID' : 'ID'}</th>
+                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Date' : 'Date'}</th>
+                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Client' : 'Customer'}</th>
+                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Boutique' : 'Shop'}</th>
+                                                        <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'Total Dû' : 'Total Due'}</th>
+                                                        <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'Payé' : 'Paid'}</th>
+                                                        <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'Reste à Payer' : 'Amount Pending'}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {pendingPayments.map((payment, idx) => (
+                                                        <tr key={idx} className={`border-b ${idx % 2 === 0 ? 'bg-orange-50' : 'bg-white'} hover:bg-orange-100`}>
+                                                            <td className="px-4 py-3 text-sm">{payment.paymentId}</td>
+                                                            <td className="px-4 py-3 text-sm">{payment.date}</td>
+                                                            <td className="px-4 py-3 text-sm">{payment.customer}</td>
+                                                            <td className="px-4 py-3 text-sm">{payment.shop}</td>
+                                                            <td className="px-4 py-3 text-sm text-right">{formatCurrency(payment.totalDue)}</td>
+                                                            <td className="px-4 py-3 text-sm text-right">{formatCurrency(payment.totalPaid)}</td>
+                                                            <td className="px-4 py-3 text-sm text-right font-bold text-orange-600">{formatCurrency(payment.amountPending)}</td>
+                                                        </tr>
+                                                    ))}
                                                 </tbody>
                                             </table>
                                         </div>
