@@ -1135,7 +1135,7 @@
                     const refundedPayments = new Set();
                     data.forEach(row => {
                         const transaction = row.transaction?.toLowerCase() || '';
-                        if (transaction.includes('refunded') || transaction.includes('remboursement')) {
+                        if (transaction.includes('refund') || transaction.includes('remboursement')) {
                             refundedPayments.add(row.payment);
                         }
                     });
