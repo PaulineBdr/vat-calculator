@@ -843,7 +843,7 @@
                             { wch: 60 }   // URL
                         ];
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
-                    }
+                    };
                     
                     if (paymentMethods.cash > 0) {
                         createPaymentSheet(['cash', 'en espèces', 'espèces'], exportLanguage === 'fr' ? 'Espèces' : 'Cash');
@@ -910,6 +910,8 @@
                         { wch: 15 },  // Reste à Payer
                         { wch: 60 }   // URL
                     ];
+                    XLSX.utils.book_append_sheet(wb, wsPending, exportLanguage === 'fr' ? 'En Attente' : 'Pending');
+                }
         
                 // ========================================
                 // TÉLÉCHARGEMENT
