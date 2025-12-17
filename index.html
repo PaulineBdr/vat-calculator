@@ -756,6 +756,15 @@
                     // ONGLETS 4+: Détail par moyen de paiement
                     // ========================================
                     const createPaymentSheet = (transactionTypes, sheetName) => {
+                        // Identifier les paiements remboursés
+                        const refundedPayments = new Set();
+                        data.forEach(row => {
+                            const transaction = (row.transaction || '').toLowerCase().trim();
+                            if (transaction.includes('refunded') || transaction.includes('remboursement')) {
+                                refundedPayments.add(String(row.payment));
+                            }
+                        });
+                        
                         // Trouver tous les payment IDs qui ont ce type de paiement
                         const matchingPaymentIds = new Set();
                         
@@ -783,18 +792,21 @@
                             if (matchingPaymentIds.has(String(row.payment))) {
                                 const transaction = (row.transaction || '').toLowerCase().trim();
                                 const grossValue = parseFloat(row.gross_value) || 0;
+                                const isRefunded = refundedPayments.has(String(row.payment));
                                 
                                 // Garder si :
                                 // 1. C'est un appointment (service)
                                 // 2. C'est un product_sale (produit/forfait)
-                                // 3. C'est le type de paiement recherché
-                                // 4. C'est la ligne URL (pas de transaction, pas de gross_value, mais une URL)
+                                // 3. C'est le type de paiement recherché (négatif OU positif si remboursé/annulé)
+                                // 4. C'est une ligne "refunded"
+                                // 5. C'est la ligne URL
                                 const isAppointment = transaction === 'appointment';
                                 const isProductSale = transaction === 'product_sale';
-                                const isMatchingPayment = grossValue < 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim());
+                                const isMatchingPayment = transactionTypes.some(t => transaction === t.toLowerCase().trim()) && (grossValue !== 0);
+                                const isRefundLine = transaction.includes('refunded') || transaction.includes('remboursement');
                                 const isUrlLine = !transaction && !grossValue && row.url;
                                 
-                                if (isAppointment || isProductSale || isMatchingPayment || isUrlLine) {
+                                if (isAppointment || isProductSale || isMatchingPayment || isRefundLine || isUrlLine) {
                                     sheetData.push([
                                         row.payment || '-',
                                         row['Heure et jour'] || row['datetime'] || '-',
@@ -1119,32 +1131,61 @@
                         total: 0
                     };
                     
+                    // Identifier les paiements remboursés (transaction contient "refunded")
+                    const refundedPayments = new Set();
+                    data.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        if (transaction.includes('refunded') || transaction.includes('remboursement')) {
+                            refundedPayments.add(row.payment);
+                        }
+                    });
+                    
+                    // Grouper par payment ID et calculer le net (négatifs + positifs)
+                    const paymentNets = {};
                     data.forEach(row => {
                         const transaction = row.transaction?.toLowerCase() || '';
                         const grossValue = parseFloat(row.gross_value) || 0;
+                        const paymentId = row.payment;
                         
-                        // Ne compter que les paiements (valeurs négatives)
-                        if (grossValue < 0) {
-                            const amount = Math.abs(grossValue);
-                            
-                            if (transaction === 'cash' || transaction === 'en espèces' || transaction === 'espèces') {
-                                payments.cash += amount;
-                            } else if (transaction === 'instore card' || transaction === 'par carte au salon') {
-                                payments.instore_card += amount;
-                            } else if (transaction === 'bank transfer' || transaction === 'virement bancaire') {
-                                payments.bank_transfer += amount;
-                            } else if (transaction === 'cheque' || transaction === 'chèque') {
-                                payments.cheque += amount;
-                            } else if (transaction === 'other' || transaction === 'autre') {
-                                payments.other += amount;
-                            } else if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
-                                payments.gift_voucher += amount;
-                            } else if (transaction === 'online_card_payment' || transaction === 'paiement par carte en ligne') {
-                                payments.online_card += amount;
-                            }
-                            
-                            payments.total += amount;
+                        // Ignorer les paiements remboursés
+                        if (refundedPayments.has(paymentId)) {
+                            return;
                         }
+                        
+                        // Calculer le montant net par type de transaction
+                        if (transaction === 'cash' || transaction === 'en espèces' || transaction === 'espèces') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].cash += grossValue;
+                        } else if (transaction === 'instore card' || transaction === 'par carte au salon') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].instore_card += grossValue;
+                        } else if (transaction === 'bank transfer' || transaction === 'virement bancaire') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].bank_transfer += grossValue;
+                        } else if (transaction === 'cheque' || transaction === 'chèque') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].cheque += grossValue;
+                        } else if (transaction === 'other' || transaction === 'autre') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].other += grossValue;
+                        } else if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].gift_voucher += grossValue;
+                        } else if (transaction === 'online_card_payment' || transaction === 'paiement par carte en ligne') {
+                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                            paymentNets[paymentId].online_card += grossValue;
+                        }
+                    });
+                    
+                    // Additionner les montants nets (seulement si négatif = paiement effectif)
+                    Object.values(paymentNets).forEach(net => {
+                        if (net.cash < 0) { payments.cash += Math.abs(net.cash); payments.total += Math.abs(net.cash); }
+                        if (net.instore_card < 0) { payments.instore_card += Math.abs(net.instore_card); payments.total += Math.abs(net.instore_card); }
+                        if (net.bank_transfer < 0) { payments.bank_transfer += Math.abs(net.bank_transfer); payments.total += Math.abs(net.bank_transfer); }
+                        if (net.cheque < 0) { payments.cheque += Math.abs(net.cheque); payments.total += Math.abs(net.cheque); }
+                        if (net.other < 0) { payments.other += Math.abs(net.other); payments.total += Math.abs(net.other); }
+                        if (net.gift_voucher < 0) { payments.gift_voucher += Math.abs(net.gift_voucher); payments.total += Math.abs(net.gift_voucher); }
+                        if (net.online_card < 0) { payments.online_card += Math.abs(net.online_card); payments.total += Math.abs(net.online_card); }
                     });
                     
                     return payments;
