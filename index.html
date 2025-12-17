@@ -772,8 +772,8 @@
                             const transaction = (row.transaction || '').toLowerCase().trim();
                             const grossValue = parseFloat(row.gross_value) || 0;
                             
-                            // Si c'est un paiement (négatif OU positif) qui correspond au type recherché
-                            if (grossValue !== 0 && transactionTypes.some(t => transaction === t.toLowerCase().trim())) {
+                            // Si c'est un paiement qui correspond au type recherché (même si remboursé)
+                            if (transactionTypes.some(t => transaction.includes(t.toLowerCase().trim()))) {
                                 matchingPaymentIds.add(String(row.payment));
                             }
                         });
