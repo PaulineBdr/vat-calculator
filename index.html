@@ -704,15 +704,6 @@
                     }
                 }
                 
-                if (enableSpecificProductRate && summary.specificProducts.ttc > 0) {
-                    vatSummaryData.push([
-                        specificProductCategoryName,
-                        summary.specificProducts.ht.toFixed(2) + ' €',
-                        summary.specificProducts.tva.toFixed(2) + ' €',
-                        summary.specificProducts.ttc.toFixed(2) + ' €'
-                    ]);
-                }
-                
                 if (summary.giftVouchers.ttc > 0) {
                     vatSummaryData.push([
                         translate('Gift Vouchers'),
@@ -1184,7 +1175,10 @@
                                 summary.specificProductsOther.tva += tva;
                                 summary.specificProductsOther.ht += ht;
                             }
-                        }
+                        } else if (row.vat_category === 'Gift Voucher') {
+                            summary.giftVouchers.ttc += ttc;
+                            summary.giftVouchers.tva += tva;
+                            summary.giftVouchers.ht += ht;
                     }
                 });
             
