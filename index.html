@@ -73,11 +73,7 @@
             const [vatRateProductSpecific, setVatRateProductSpecific] = useState(5.5);
             const [specificProductCategoryName, setSpecificProductCategoryName] = useState('Product (Specific)');
             const [specificProductKeywords, setSpecificProductKeywords] = useState('');
-            
-            const [packageKeywords, setPackageKeywords] = useState('séances,séance,forfait,package,abonnement,subscription,sessions,session');
-            const [giftVoucherKeywords, setGiftVoucherKeywords] = useState('bon cadeau,chèque cadeau,carte cadeau,gift card,gift voucher,voucher,gift certificate,massage,soin,spa,coupe,cut,coloration,color,balayage,mèches,highlights,brushing,manucure,manicure,pédicure,pedicure,facial,épilation,waxing,maquillage,makeup,soins du visage,skincare,valeur,valeur de,montant,montant de');
-            const [showKeywords, setShowKeywords] = useState(false);
-
+        
             const translateCategory = (category) => {
                 if (exportLanguage === 'fr') {
                     const translations = {
@@ -147,8 +143,6 @@
                             paymentGroups[paymentId].push(row);
                         }
                         
-                        const packageKw = packageKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
-                        const giftKw = giftVoucherKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
                         const specificProdKw = enableSpecificProductRate ? specificProductKeywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k) : [];
                         
                         for (const paymentId in paymentGroups) {
@@ -267,80 +261,86 @@
                                             row.vat_rate = vatRateAppointment;
                                             row.vat_category = 'Appointment';
                                         }
-                                    } else if (transaction === 'product_sale') {
-                                        // Calculate proportional gift voucher allocation for products/packages
-                                        let amountToTax = grossValue;
-                                        let totalProducts = 0;
+                                    } else if (transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') {
+                                        // Identifier le type de vente directement depuis transaction
+                                        const isPackage = transaction === 'package_sale';
+                                        const isGiftVoucher = transaction === 'gift_voucher_sale';
+                                        const isProduct = transaction === 'product_sale';
                                         
-                                        // Calculate total products/packages in this payment
-                                        group.forEach(r => {
-                                            const t = r.transaction?.toLowerCase() || '';
-                                            const gv = parseFloat(r.gross_value) || 0;
-                                            if (t === 'product_sale' && gv > 0) {
-                                                totalProducts += gv;
-                                            }
-                                        });
-                                        
-                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalProducts > 0) {
-                                            // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
-                                            const proportion = grossValue / totalProducts;
-                                            const giftVoucherPart = proportion * giftVoucherAmount;
-                                            amountToTax = grossValue - giftVoucherPart;
-                                        }
-                                    
-                                        const isPackage = packageKw.some(keyword => type.includes(keyword));
-                                        
-                                        if (isPackage) {
-                                            const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                            row.vat_amount = calculatedVAT;
+                                        // Pour les gift vouchers : pas de calcul de proportion (ne peuvent pas être payés par gift voucher)
+                                        if (isGiftVoucher) {
+                                            row.vat_amount = (grossValue * (vatRateGiftVoucher / (100 + vatRateGiftVoucher))).toFixed(2);
+                                            row.vat_rate = vatRateGiftVoucher;
+                                            row.vat_category = 'Gift Voucher';
+                                        } else {
+                                            // Pour produits et forfaits : calcul de proportion si payé partiellement par gift voucher
+                                            let amountToTax = grossValue;
+                                            let totalProducts = 0;
                                             
-                                            if (hasGiftVoucherPayment) {
-                                                if (vatRateGiftVoucher > 0) {
-                                                    if (amountToTax === 0) {
-                                                        row.vat_rate = '';
-                                                        row.vat_amount = '';
-                                                        row.vat_category = 'Package (Paid by Gift Voucher)';
-                                                    } else if (amountToTax < grossValue) {
-                                                        row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
-                                                        row.vat_rate = vatRateAppointment;
-                                                        row.vat_category = 'Package (Partial Gift Voucher)';
+                                            // Calculer le total des produits/forfaits dans ce paiement
+                                            group.forEach(r => {
+                                                const t = r.transaction?.toLowerCase() || '';
+                                                const gv = parseFloat(r.gross_value) || 0;
+                                                if ((t === 'product_sale' || t === 'package_sale') && gv > 0) {
+                                                    totalProducts += gv;
+                                                }
+                                            });
+                                            
+                                            if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalProducts > 0) {
+                                                // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
+                                                const proportion = grossValue / totalProducts;
+                                                const giftVoucherPart = proportion * giftVoucherAmount;
+                                                amountToTax = grossValue - giftVoucherPart;
+                                            }
+                                            
+                                            if (isPackage) {
+                                                // ===== FORFAIT =====
+                                                const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
+                                                row.vat_amount = calculatedVAT;
+                                                
+                                                if (hasGiftVoucherPayment) {
+                                                    if (vatRateGiftVoucher > 0) {
+                                                        if (amountToTax === 0) {
+                                                            row.vat_rate = '';
+                                                            row.vat_amount = '';
+                                                            row.vat_category = 'Package (Paid by Gift Voucher)';
+                                                        } else if (amountToTax < grossValue) {
+                                                            row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
+                                                            row.vat_rate = vatRateAppointment;
+                                                            row.vat_category = 'Package (Partial Gift Voucher)';
+                                                        } else {
+                                                            row.vat_rate = vatRateAppointment;
+                                                            row.vat_category = 'Package';
+                                                        }
                                                     } else {
                                                         row.vat_rate = vatRateAppointment;
-                                                        row.vat_category = 'Package';
+                                                        
+                                                        // Calculer la part bon cadeau pour le récapitulatif
+                                                        if (totalProducts > 0) {
+                                                            const proportion = grossValue / totalProducts;
+                                                            const giftVoucherPart = proportion * giftVoucherAmount;
+                                                            row._giftVoucherPart = giftVoucherPart;
+                                                            row._amountToTax = grossValue - giftVoucherPart;
+                                                        }
+                                                        
+                                                        const hasOtherPayment = group.some(r => {
+                                                            const t = r.transaction?.toLowerCase() || '';
+                                                            const gv = parseFloat(r.gross_value) || 0;
+                                                            return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                        });
+                                                        row.vat_category = hasOtherPayment ? 'Package (Partial Gift Voucher)' : 'Package (Paid by Gift Voucher)';
                                                     }
                                                 } else {
                                                     row.vat_rate = vatRateAppointment;
-                                                    
-                                                    // Calculer la part bon cadeau pour le récapitulatif
-                                                    if (totalProducts > 0) {
-                                                        const proportion = grossValue / totalProducts;
-                                                        const giftVoucherPart = proportion * giftVoucherAmount;
-                                                        row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
-                                                        row._amountToTax = grossValue - giftVoucherPart;
-                                                    }
-                                                    
-                                                    const hasOtherPayment = group.some(r => {
-                                                        const t = r.transaction?.toLowerCase() || '';
-                                                        const gv = parseFloat(r.gross_value) || 0;
-                                                        return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
-                                                    });
-                                                    row.vat_category = hasOtherPayment ? 'Package (Partial Gift Voucher)' : 'Package (Paid by Gift Voucher)';
+                                                    row.vat_category = 'Package';
                                                 }
-                                            } else {
-                                                row.vat_rate = vatRateAppointment;
-                                                row.vat_category = 'Package';
-                                            }
-                                        } else {
-                                            const isGiftVoucher = giftKw.some(keyword => type.includes(keyword));
-                                            
-                                            if (isGiftVoucher) {
-                                                row.vat_amount = (grossValue * (vatRateGiftVoucher / (100 + vatRateGiftVoucher))).toFixed(2);
-                                                row.vat_rate = vatRateGiftVoucher;
-                                                row.vat_category = 'Gift Voucher';
-                                            } else {
+                                                
+                                            } else if (isProduct) {
+                                                // ===== PRODUIT =====
                                                 const isSpecificProduct = enableSpecificProductRate && specificProdKw.some(keyword => type.includes(keyword));
                                                 
                                                 if (isSpecificProduct) {
+                                                    // Produit avec taux spécifique
                                                     const calculatedVAT = (amountToTax * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
                                                     row.vat_amount = calculatedVAT;
                                                     
@@ -361,11 +361,10 @@
                                                         } else {
                                                             row.vat_rate = vatRateProductSpecific;
                                                             
-                                                            // Calculer la part bon cadeau pour le récapitulatif
                                                             if (totalProducts > 0) {
                                                                 const proportion = grossValue / totalProducts;
                                                                 const giftVoucherPart = proportion * giftVoucherAmount;
-                                                                row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
+                                                                row._giftVoucherPart = giftVoucherPart;
                                                                 row._amountToTax = grossValue - giftVoucherPart;
                                                             }
                                                             
@@ -380,7 +379,9 @@
                                                         row.vat_rate = vatRateProductSpecific;
                                                         row.vat_category = specificProductCategoryName;
                                                     }
+                                                    
                                                 } else {
+                                                    // Produit standard
                                                     const calculatedVAT = (amountToTax * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
                                                     row.vat_amount = calculatedVAT;
                                                     
@@ -401,11 +402,10 @@
                                                         } else {
                                                             row.vat_rate = vatRateProduct;
                                                             
-                                                            // Calculer la part bon cadeau pour le récapitulatif
                                                             if (totalProducts > 0) {
                                                                 const proportion = grossValue / totalProducts;
                                                                 const giftVoucherPart = proportion * giftVoucherAmount;
-                                                                row._giftVoucherPart = giftVoucherPart; // Stocker pour calculateSummary
+                                                                row._giftVoucherPart = giftVoucherPart;
                                                                 row._amountToTax = grossValue - giftVoucherPart;
                                                             }
                                                             
@@ -1497,15 +1497,13 @@
                             
                             <p className="text-gray-600 mb-6">
                                 Import your payment CSV file to automatically calculate VAT. <strong>VAT is only calculated for paid transactions.</strong>
+                                <br/>
+                                <span className="text-sm mt-2 block text-indigo-600">
+                                    ✨ <strong>Automatic detection:</strong> Products, packages, and gift vouchers are automatically identified from the transaction type.
+                                </span>
                             </p>
 
-                            <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-semibold text-indigo-900">VAT Rates Configuration</h3>
-                                    <button onClick={() => setShowKeywords(!showKeywords)} className="text-sm text-indigo-600 hover:text-indigo-800 underline">
-                                        {showKeywords ? 'Hide' : 'Show'} Keywords
-                                    </button>
-                                </div>
+                            <h3 className="text-lg font-semibold text-indigo-900">VAT Rates Configuration</h3>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-white rounded-lg p-4 border border-indigo-200">
@@ -1587,19 +1585,6 @@
                                         </div>
                                     </div>
                                 </div>
-
-                                {showKeywords && (
-                                    <div className="mt-4 pt-4 border-t border-indigo-200 space-y-3">
-                                        <div>
-                                            <label className="block text-xs font-medium mb-1">Package keywords:</label>
-                                            <input type="text" value={packageKeywords} onChange={(e) => setPackageKeywords(e.target.value)} className="w-full px-3 py-2 text-sm border rounded"/>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium mb-1">Gift voucher keywords:</label>
-                                            <input type="text" value={giftVoucherKeywords} onChange={(e) => setGiftVoucherKeywords(e.target.value)} className="w-full px-3 py-2 text-sm border rounded"/>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="flex flex-wrap gap-3 mb-6">
