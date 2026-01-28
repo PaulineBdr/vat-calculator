@@ -805,17 +805,21 @@
                                 
                                 // Garder si :
                                 // 1. C'est un appointment (service)
-                                // 2. C'est un product_sale (produit/forfait)
-                                // 3. C'est le type de paiement recherché (contient le type)
-                                // 4. C'est une ligne "refund"
-                                // 5. C'est la ligne URL
+                                // 2. C'est un product_sale (produit)
+                                // 3. C'est un package_sale (forfait)
+                                // 4. C'est un gift_voucher_sale (bon cadeau)
+                                // 5. C'est le type de paiement recherché (contient le type)
+                                // 6. C'est une ligne "refund"
+                                // 7. C'est la ligne URL
                                 const isAppointment = transaction === 'appointment';
                                 const isProductSale = transaction === 'product_sale';
+                                const isPackageSale = transaction === 'package_sale';
+                                const isGiftVoucherSale = transaction === 'gift_voucher_sale';
                                 const isMatchingPayment = transactionTypes.some(t => transaction.includes(t.toLowerCase().trim()));
                                 const isRefundLine = transaction.includes('refund') || transaction.includes('remboursement');
                                 const isUrlLine = !transaction && !grossValue && row.url;
                                 
-                                if (isAppointment || isProductSale || isMatchingPayment || isRefundLine || isUrlLine) {
+                                if (isAppointment || isProductSale || isPackageSale || isGiftVoucherSale || isMatchingPayment || isRefundLine || isUrlLine) {
                                     sheetData.push([
                                         row.payment || '-',
                                         row['Heure et jour'] || row['datetime'] || '-',
@@ -1367,7 +1371,7 @@
                         const transaction = row.transaction?.toLowerCase() || '';
                         const grossValue = parseFloat(row.gross_value) || 0;
                         
-                        if ((transaction === 'appointment' || transaction === 'product_sale') && grossValue > 0) {
+                        if ((transaction === 'appointment' || transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') && grossValue > 0) {
                             totalDue += grossValue;
                             items.push(row);
                         }
@@ -1461,7 +1465,7 @@
                         const transaction = row.transaction?.toLowerCase() || '';
                         const grossValue = parseFloat(row.gross_value) || 0;
                         
-                        if ((transaction === 'appointment' || transaction === 'product_sale') && grossValue >= 0) {
+                        if ((transaction === 'appointment' || transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') && grossValue >= 0) {
                             totalServices += grossValue;
                             if (grossValue === 0) {
                                 serviceItems.push(row);
