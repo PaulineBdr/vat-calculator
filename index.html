@@ -585,11 +585,12 @@
                 // Ajouter "Total hors BC" seulement si des BC ont été utilisés
                 if (summary.appointmentsGiftVoucher.ttc > 0) {
                     vatSummaryData.push([
-                        translate('Total Period (Excl. Gift Voucher Payments)'),
-                        (summary.total.ht - summary.appointmentsGiftVoucher.ht).toFixed(2) + ' €',
-                        summary.total.tva.toFixed(2) + ' €',
-                        (summary.total.ttc - summary.appointmentsGiftVoucher.ttc).toFixed(2) + ' €'
-                    ]);
+                        vatSummaryData.push([
+                            translate('Total Period (Excl. Gift Voucher Payments)'),
+                            (summary.total.ht - summary.appointmentsGiftVoucher.ht - summary.packagesGiftVoucher.ht - summary.productsGiftVoucher.ht - summary.specificProductsGiftVoucher.ht).toFixed(2) + ' €',
+                            summary.total.tva.toFixed(2) + ' €',
+                            (summary.total.ttc - summary.appointmentsGiftVoucher.ttc - summary.packagesGiftVoucher.ttc - summary.productsGiftVoucher.ttc - summary.specificProductsGiftVoucher.ttc).toFixed(2) + ' €'
+                        ]);
                 }
                 
                 vatSummaryData.push([]);
@@ -950,8 +951,15 @@
                     
                     const pendingData = [pendingHeaders];
                     
+                    const pendingData = [pendingHeaders];
+
                     pendingPaymentsData.forEach(payment => {
-                        const itemsDescription = payment.items.map(item => item.type).join(', ');
+                        const servicesDescription = payment.serviceItems.map(item => item.type).join(', ');
+                        const productsDescription = payment.productItems.map(item => item.type).join(', ');
+                        const itemsDescription = [
+                            servicesDescription && `📅 ${servicesDescription}`,
+                            productsDescription && `🛍️ ${productsDescription}`
+                        ].filter(Boolean).join(' | ');
                         const notes = payment.items[0]?.additional_info || '';
                         pendingData.push([
                             payment.paymentId,
@@ -1333,99 +1341,115 @@
                     return payments;
                 };
                 const calculatePendingPayments = () => {
-                const pendingPayments = [];
-                const paymentGroups = {};
-                
-                // Grouper par payment ID
-                data.forEach(row => {
-                    const paymentId = row.payment;
-                    if (!paymentGroups[paymentId]) {
-                        paymentGroups[paymentId] = [];
-                    }
-                    paymentGroups[paymentId].push(row);
-                });
-                
-                // Identifier les paiements remboursés
-                const refundedPayments = new Set();
-                data.forEach(row => {
-                    const transaction = row.transaction?.toLowerCase() || '';
-                    if (transaction.includes('refund') || transaction.includes('remboursement')) {
-                        refundedPayments.add(row.payment);
-                    }
-                });
-                
-                // Analyser chaque groupe de paiement
-                Object.keys(paymentGroups).forEach(paymentId => {
-                    const group = paymentGroups[paymentId];
+                    const pendingPayments = [];
+                    const paymentGroups = {};
                     
-                    // Ignorer les paiements remboursés
-                    if (refundedPayments.has(paymentId)) {
-                        return;
-                    }
+                    // Grouper par payment ID
+                    data.forEach(row => {
+                        const paymentId = row.payment;
+                        if (!paymentGroups[paymentId]) {
+                            paymentGroups[paymentId] = [];
+                        }
+                        paymentGroups[paymentId].push(row);
+                    });
                     
-                    // Calculer le total des services/produits (positif)
-                    let totalDue = 0;
-                    const items = [];
-                    
-                    group.forEach(row => {
+                    // Identifier les paiements remboursés
+                    const refundedPayments = new Set();
+                    data.forEach(row => {
                         const transaction = row.transaction?.toLowerCase() || '';
-                        const grossValue = parseFloat(row.gross_value) || 0;
-                        
-                        if ((transaction === 'appointment' || transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') && grossValue > 0) {
-                            totalDue += grossValue;
-                            items.push(row);
+                        if (transaction.includes('refund') || transaction.includes('remboursement')) {
+                            refundedPayments.add(row.payment);
                         }
                     });
                     
-                    // Calculer le total des paiements (somme algébrique pour gérer les annulations)
-                    let totalPaid = 0;
-                    const paymentsByType = {};
-                    
-                    group.forEach(row => {
-                        const transaction = row.transaction?.toLowerCase() || '';
-                        const grossValue = parseFloat(row.gross_value) || 0;
+                    // Analyser chaque groupe de paiement
+                    Object.keys(paymentGroups).forEach(paymentId => {
+                        const group = paymentGroups[paymentId];
                         
-                        // Tous les paiements (négatifs et positifs si annulation)
-                        if (transaction !== 'appointment' && 
-                            transaction !== 'product_sale' && 
-                            grossValue !== 0 &&
-                            !transaction.includes('refund')) {
+                        // Ignorer les paiements remboursés
+                        if (refundedPayments.has(paymentId)) {
+                            return;
+                        }
+                        
+                        // Calculer le total des services/produits (positif) - SÉPARÉ
+                        let totalDueServices = 0;
+                        let totalDueProducts = 0;
+                        const serviceItems = [];
+                        const productItems = [];
+                        
+                        group.forEach(row => {
+                            const transaction = row.transaction?.toLowerCase() || '';
+                            const grossValue = parseFloat(row.gross_value) || 0;
                             
-                            if (!paymentsByType[transaction]) {
-                                paymentsByType[transaction] = 0;
+                            if (grossValue > 0) {
+                                if (transaction === 'appointment' || transaction === 'package_sale') {
+                                    totalDueServices += grossValue;
+                                    serviceItems.push(row);
+                                } else if (transaction === 'product_sale' || transaction === 'gift_voucher_sale') {
+                                    totalDueProducts += grossValue;
+                                    productItems.push(row);
+                                }
                             }
-                            paymentsByType[transaction] += grossValue;
-                        }
-                    });
-                    
-                    // Calculer le total réellement payé (somme des valeurs négatives nettes)
-                    Object.values(paymentsByType).forEach(amount => {
-                        if (amount < 0) {
-                            totalPaid += Math.abs(amount);
-                        }
-                    });
-                    
-                    // Si le montant payé est inférieur au montant dû
-                    const amountPending = totalDue - totalPaid;
-                    
-                    if (amountPending > 0.01) { // Seuil de 1 centime pour éviter les erreurs d'arrondi
-                        pendingPayments.push({
-                            paymentId: paymentId,
-                            totalDue: totalDue,
-                            totalPaid: totalPaid,
-                            amountPending: amountPending,
-                            items: items,
-                            date: items[0]?.['Heure et jour'] || items[0]?.['datetime'] || items[0]?.['Date and time'] || '',
-                            customer: items[0]?.customer_name || '',
-                            shop: items[0]?.shop || '',
-                            employee: items[0]?.employee || '',
-                            url: group.find(r => r.url)?.url || ''
                         });
-                    }
-                });
-                
-                return pendingPayments;
-            };
+                        
+                        const totalDue = totalDueServices + totalDueProducts;
+                        const allItems = [...serviceItems, ...productItems];
+                        
+                        // Calculer le total des paiements (somme algébrique pour gérer les annulations)
+                        let totalPaid = 0;
+                        const paymentsByType = {};
+                        
+                        group.forEach(row => {
+                            const transaction = row.transaction?.toLowerCase() || '';
+                            const grossValue = parseFloat(row.gross_value) || 0;
+                            
+                            // Tous les paiements (négatifs et positifs si annulation)
+                            if (transaction !== 'appointment' && 
+                                transaction !== 'product_sale' && 
+                                transaction !== 'package_sale' &&
+                                transaction !== 'gift_voucher_sale' &&
+                                grossValue !== 0 &&
+                                !transaction.includes('refund')) {
+                                
+                                if (!paymentsByType[transaction]) {
+                                    paymentsByType[transaction] = 0;
+                                }
+                                paymentsByType[transaction] += grossValue;
+                            }
+                        });
+                        
+                        // Calculer le total réellement payé (somme des valeurs négatives nettes)
+                        Object.values(paymentsByType).forEach(amount => {
+                            if (amount < 0) {
+                                totalPaid += Math.abs(amount);
+                            }
+                        });
+                        
+                        // Si le montant payé est inférieur au montant dû
+                        const amountPending = totalDue - totalPaid;
+                        
+                        if (amountPending > 0.01) { // Seuil de 1 centime pour éviter les erreurs d'arrondi
+                            pendingPayments.push({
+                                paymentId: paymentId,
+                                totalDue: totalDue,
+                                totalDueServices: totalDueServices,
+                                totalDueProducts: totalDueProducts,
+                                totalPaid: totalPaid,
+                                amountPending: amountPending,
+                                items: allItems,
+                                serviceItems: serviceItems,
+                                productItems: productItems,
+                                date: allItems[0]?.['Heure et jour'] || allItems[0]?.['datetime'] || allItems[0]?.['Date and time'] || '',
+                                customer: allItems[0]?.customer_name || '',
+                                shop: allItems[0]?.shop || '',
+                                employee: allItems[0]?.employee || '',
+                                url: group.find(r => r.url)?.url || ''
+                            });
+                        }
+                    });
+                    
+                    return pendingPayments;
+                };
             const calculateAnomalies = () => {
                 const anomalies = [];
                 const paymentGroups = {};
@@ -1703,9 +1727,9 @@
                                                 {summary.appointmentsGiftVoucher.ttc > 0 && (
                                                     <tr className="bg-blue-50 border-b-2 border-blue-600">
                                                         <td className="px-4 py-3 font-bold text-blue-900">{translate('Total Period (Excl. Gift Voucher Payments)')}</td>
-                                                        <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.ht - summary.appointmentsGiftVoucher.ht)}</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.ht - summary.appointmentsGiftVoucher.ht - summary.packagesGiftVoucher.ht - summary.productsGiftVoucher.ht - summary.specificProductsGiftVoucher.ht)}</td>
                                                         <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.tva)}</td>
-                                                        <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.ttc - summary.appointmentsGiftVoucher.ttc)}</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-blue-900">{formatCurrency(summary.total.ttc - summary.appointmentsGiftVoucher.ttc - summary.packagesGiftVoucher.ttc - summary.productsGiftVoucher.ttc - summary.specificProductsGiftVoucher.ttc)}</td>
                                                     </tr>
                                                 )}
                                                 
