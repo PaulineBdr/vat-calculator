@@ -583,14 +583,13 @@
                 ];
                 
                 // Ajouter "Total hors BC" seulement si des BC ont été utilisés
-                if (summary.appointmentsGiftVoucher.ttc > 0) {
+               if (summary.appointmentsGiftVoucher.ttc > 0) {
                     vatSummaryData.push([
-                        vatSummaryData.push([
-                            translate('Total Period (Excl. Gift Voucher Payments)'),
-                            (summary.total.ht - summary.appointmentsGiftVoucher.ht - summary.packagesGiftVoucher.ht - summary.productsGiftVoucher.ht - summary.specificProductsGiftVoucher.ht).toFixed(2) + ' €',
-                            summary.total.tva.toFixed(2) + ' €',
-                            (summary.total.ttc - summary.appointmentsGiftVoucher.ttc - summary.packagesGiftVoucher.ttc - summary.productsGiftVoucher.ttc - summary.specificProductsGiftVoucher.ttc).toFixed(2) + ' €'
-                        ]);
+                        translate('Total Period (Excl. Gift Voucher Payments)'),
+                        (summary.total.ht - summary.appointmentsGiftVoucher.ht - summary.packagesGiftVoucher.ht - summary.productsGiftVoucher.ht - summary.specificProductsGiftVoucher.ht).toFixed(2) + ' €',
+                        summary.total.tva.toFixed(2) + ' €',
+                        (summary.total.ttc - summary.appointmentsGiftVoucher.ttc - summary.packagesGiftVoucher.ttc - summary.productsGiftVoucher.ttc - summary.specificProductsGiftVoucher.ttc).toFixed(2) + ' €'
+                    ]);
                 }
                 
                 vatSummaryData.push([]);
