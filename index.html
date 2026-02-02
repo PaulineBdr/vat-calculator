@@ -396,56 +396,58 @@
                                                         row.vat_category = specificProductCategoryName;
                                                     }
                                                 } else {
-                                                    // Produit standard
-                                                    if (hasGiftVoucherPayment) {
-                                                        if (vatRateGiftVoucher > 0) {
-                                                            // TVA appliquée à l'achat du bon cadeau
-                                                            const calculatedVAT = (amountToTax * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
-                                                            
-                                                            if (amountToTax === 0) {
-                                                                row.vat_rate = '';
-                                                                row.vat_amount = '';
-                                                                row.vat_category = 'Product (Paid by Gift Voucher)';
-                                                            } else if (amountToTax < grossValue) {
-                                                                // Stocker les valeurs pour le récapitulatif
-                                                                row._giftVoucherPart = grossValue - amountToTax;
-                                                                row._amountToTax = amountToTax;
-                                                                row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
-                                                                row.vat_rate = vatRateProduct;
-                                                                row.vat_amount = calculatedVAT;
-                                                                row.vat_category = 'Product (Partial Gift Voucher)';
-                                                            } else {
-                                                                row.vat_rate = vatRateProduct;
-                                                                row.vat_amount = calculatedVAT;
-                                                                 row.vat_category = 'Product';
-                                                            }
-                                                        } else {
-                                                            // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
-                                                            row.vat_rate = vatRateProduct;
-                                                            row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
-                                                            
-                                                            if (totalProducts > 0) {
-                                                                const proportion = grossValue / totalProducts;
-                                                                const giftVoucherPart = proportion * giftVoucherAmount;
-                                                                row._giftVoucherPart = giftVoucherPart;
-                                                                row._amountToTax = grossValue - giftVoucherPart;
-                                                            }
-                                                            
-                                                            const hasOtherPayment = group.some(r => {
-                                                                const t = r.transaction?.toLowerCase() || '';
-                                                                const gv = parseFloat(r.gross_value) || 0;
-                                                                return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
-                                                            });
-                                                            row.vat_category = hasOtherPayment ? 'Product (Partial Gift Voucher)' : 'Product (Paid by Gift Voucher)';
-                                                        }
+                                                    // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
+                                                    // On taxe TOUT le montant du produit
+                                                    row.vat_rate = vatRateProduct;
+                                                    row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
+                                                    
+                                                    // Calculer la part bon cadeau pour le récapitulatif
+                                                    if (totalProducts > 0) {
+                                                        const proportion = grossValue / totalProducts;
+                                                        const giftVoucherPart = proportion * giftVoucherAmount;
+                                                        row._giftVoucherPart = giftVoucherPart;
+                                                        row._amountToTax = grossValue - giftVoucherPart;
+                                                    }
+                                                    
+                                                    // Vérifier si c'est 100% BC ou mixte
+                                                    const hasOtherPayment = group.some(r => {
+                                                        const t = r.transaction?.toLowerCase() || '';
+                                                        const gv = parseFloat(r.gross_value) || 0;
+                                                        return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                    });
+                                                    
+                                                    if (hasOtherPayment) {
+                                                        row.vat_category = 'Product (Partial Gift Voucher)';
                                                     } else {
-                                                        row.vat_rate = vatRateProduct;
-                                                        row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
-                                                        row.vat_category = 'Product';
+                                                        row.vat_category = 'Product (Paid by Gift Voucher)';
                                                     }
                                                 }
-                                            }
-                                        }
+                                           } else {
+                                                // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
+                                                // On taxe TOUT le montant du produit
+                                                row.vat_rate = vatRateProduct;
+                                                row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
+                                                
+                                                // Calculer la part bon cadeau pour le récapitulatif
+                                                if (totalProducts > 0) {
+                                                    const proportion = grossValue / totalProducts;
+                                                    const giftVoucherPart = proportion * giftVoucherAmount;
+                                                    row._giftVoucherPart = giftVoucherPart;
+                                                    row._amountToTax = grossValue - giftVoucherPart;
+                                                }
+                                                
+                                                // Vérifier si c'est 100% BC ou mixte
+                                                const hasOtherPayment = group.some(r => {
+                                                    const t = r.transaction?.toLowerCase() || '';
+                                                    const gv = parseFloat(r.gross_value) || 0;
+                                                    return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                });
+                                                
+                                                if (hasOtherPayment) {
+                                                    row.vat_category = 'Product (Partial Gift Voucher)';
+                                                } else {
+                                                    row.vat_category = 'Product (Paid by Gift Voucher)';
+                                                }
                                     } else {
                                         row.vat_amount = '';
                                         row.vat_rate = '';
@@ -1152,19 +1154,14 @@
                         summary.products.ht += ht;
                         
                         if (row.vat_category === 'Product (Paid by Gift Voucher)') {
-                            // Si TVA BC = 0%, la TVA est calculée au moment de l'utilisation
-                            // Donc on ne compte PAS ce montant dans "Paid by Gift Voucher"
-                            // car la TVA a déjà été déclarée au rdv/utilisation
+                            summary.productsGiftVoucher.ttc += ttc;
+                            
+                            // Si vat_amount existe = TVA BC à 0% donc TVA déclarée au moment de l'utilisation
+                            // Si vat_amount vide = TVA BC > 0% donc TVA déjà déclarée à l'achat
                             if (row.vat_amount && row.vat_rate !== '') {
-                                // TVA BC = 0% : TVA déclarée au moment de l'utilisation
-                                // On ne compte PAS dans Gift Voucher, mais dans Other
-                                summary.productsOther.ttc += ttc;
-                                summary.productsOther.tva += tva;
-                                summary.productsOther.ht += ht;
+                                summary.productsGiftVoucher.tva += tva;
+                                summary.productsGiftVoucher.ht += ht;
                             } else {
-                                // TVA BC > 0% : TVA déclarée à l'achat du BC
-                                // On compte dans Gift Voucher
-                                summary.productsGiftVoucher.ttc += ttc;
                                 summary.productsGiftVoucher.tva += 0;
                                 summary.productsGiftVoucher.ht += ttc;
                             }
