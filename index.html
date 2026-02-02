@@ -1107,15 +1107,17 @@
                         summary.packages.tva += tva;
                         summary.packages.ht += ht;
                         
-                        if (row.vat_category === 'Package (Paid by Gift Voucher)') {
-                            summary.packagesGiftVoucher.ttc += ttc;
-                            
+                        if (row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
                             if (row.vat_amount && row.vat_rate !== '') {
-                                summary.packagesGiftVoucher.tva += tva;
-                                summary.packagesGiftVoucher.ht += ht;
+                                // TVA BC = 0% : TVA déclarée au moment de l'utilisation
+                                summary.specificProductsOther.ttc += ttc;
+                                summary.specificProductsOther.tva += tva;
+                                summary.specificProductsOther.ht += ht;
                             } else {
-                                summary.packagesGiftVoucher.tva += 0;
-                                summary.packagesGiftVoucher.ht += ttc;
+                                // TVA BC > 0% : TVA déclarée à l'achat du BC
+                                summary.specificProductsGiftVoucher.ttc += ttc;
+                                summary.specificProductsGiftVoucher.tva += 0;
+                                summary.specificProductsGiftVoucher.ht += ttc;
                             }
                         } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
                             let amountToTax = 0;
@@ -1150,12 +1152,19 @@
                         summary.products.ht += ht;
                         
                         if (row.vat_category === 'Product (Paid by Gift Voucher)') {
-                            summary.productsGiftVoucher.ttc += ttc;
-                            
+                            // Si TVA BC = 0%, la TVA est calculée au moment de l'utilisation
+                            // Donc on ne compte PAS ce montant dans "Paid by Gift Voucher"
+                            // car la TVA a déjà été déclarée au rdv/utilisation
                             if (row.vat_amount && row.vat_rate !== '') {
-                                summary.productsGiftVoucher.tva += tva;
-                                summary.productsGiftVoucher.ht += ht;
+                                // TVA BC = 0% : TVA déclarée au moment de l'utilisation
+                                // On ne compte PAS dans Gift Voucher, mais dans Other
+                                summary.productsOther.ttc += ttc;
+                                summary.productsOther.tva += tva;
+                                summary.productsOther.ht += ht;
                             } else {
+                                // TVA BC > 0% : TVA déclarée à l'achat du BC
+                                // On compte dans Gift Voucher
+                                summary.productsGiftVoucher.ttc += ttc;
                                 summary.productsGiftVoucher.tva += 0;
                                 summary.productsGiftVoucher.ht += ttc;
                             }
