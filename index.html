@@ -417,8 +417,32 @@
                                                             } else {
                                                                 row.vat_rate = vatRateProduct;
                                                                 row.vat_amount = calculatedVAT;
-                                                                row.vat_category = 'Product';
+                                                                 row.vat_category = 'Product';
                                                             }
+                                                        } else {
+                                                            // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
+                                                            row.vat_rate = vatRateProduct;
+                                                            row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
+                                                            
+                                                            if (totalProducts > 0) {
+                                                                const proportion = grossValue / totalProducts;
+                                                                const giftVoucherPart = proportion * giftVoucherAmount;
+                                                                row._giftVoucherPart = giftVoucherPart;
+                                                                row._amountToTax = grossValue - giftVoucherPart;
+                                                            }
+                                                            
+                                                            const hasOtherPayment = group.some(r => {
+                                                                const t = r.transaction?.toLowerCase() || '';
+                                                                const gv = parseFloat(r.gross_value) || 0;
+                                                                return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
+                                                            });
+                                                            row.vat_category = hasOtherPayment ? 'Product (Partial Gift Voucher)' : 'Product (Paid by Gift Voucher)';
+                                                        }
+                                                    } else {
+                                                        row.vat_rate = vatRateProduct;
+                                                        row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
+                                                        row.vat_category = 'Product';
+                                                    }
                                                 }
                                             }
                                         }
