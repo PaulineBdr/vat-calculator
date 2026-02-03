@@ -261,24 +261,21 @@
                                                 row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                                 
                                                 // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                let giftVoucherPartForThisAppointment = 0;
                                                 if (giftVoucherForAppointments > 0) {
-                                                    const giftVoucherPart = Math.min(grossValue, giftVoucherForAppointments);
-                                                    giftVoucherForAppointments -= giftVoucherPart; // Réduire le BC restant
-                                                    row._giftVoucherPart = giftVoucherPart;
-                                                    row._amountToTax = grossValue - giftVoucherPart;
+                                                    giftVoucherPartForThisAppointment = Math.min(grossValue, giftVoucherForAppointments);
+                                                    giftVoucherForAppointments -= giftVoucherPartForThisAppointment;
+                                                    row._giftVoucherPart = giftVoucherPartForThisAppointment;
+                                                    row._amountToTax = grossValue - giftVoucherPartForThisAppointment;
                                                 }
                                                 
-                                                // Vérifier si c'est 100% BC ou mixte
-                                                const hasOtherPayment = group.some(r => {
-                                                    const t = r.transaction?.toLowerCase() || '';
-                                                    const gv = parseFloat(r.gross_value) || 0;
-                                                    return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
-                                                });
-                                                
-                                                if (hasOtherPayment) {
-                                                    row.vat_category = 'Appointment (Partial Gift Voucher)';
-                                                } else {
+                                                // Déterminer la catégorie selon le % couvert par BC
+                                                if (giftVoucherPartForThisAppointment === 0) {
+                                                    row.vat_category = 'Appointment';
+                                                } else if (giftVoucherPartForThisAppointment >= grossValue) {
                                                     row.vat_category = 'Appointment (Paid by Gift Voucher)';
+                                                } else {
+                                                    row.vat_category = 'Appointment (Partial Gift Voucher)';
                                                 }
                                             }
                                         } else {
@@ -342,19 +339,22 @@
                                                         row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                                         
                                                         // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                        let giftVoucherPartForThisPackage = 0;
                                                         if (giftVoucherForPackages > 0) {
-                                                            const giftVoucherPart = Math.min(grossValue, giftVoucherForPackages);
-                                                            giftVoucherForPackages -= giftVoucherPart;
-                                                            row._giftVoucherPart = giftVoucherPart;
-                                                            row._amountToTax = grossValue - giftVoucherPart;
+                                                            giftVoucherPartForThisPackage = Math.min(grossValue, giftVoucherForPackages);
+                                                            giftVoucherForPackages -= giftVoucherPartForThisPackage;
+                                                            row._giftVoucherPart = giftVoucherPartForThisPackage;
+                                                            row._amountToTax = grossValue - giftVoucherPartForThisPackage;
                                                         }
                                                         
-                                                        const hasOtherPayment = group.some(r => {
-                                                            const t = r.transaction?.toLowerCase() || '';
-                                                            const gv = parseFloat(r.gross_value) || 0;
-                                                            return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
-                                                        });
-                                                        row.vat_category = hasOtherPayment ? 'Package (Partial Gift Voucher)' : 'Package (Paid by Gift Voucher)';
+                                                        // Déterminer la catégorie selon le % couvert par BC
+                                                        if (giftVoucherPartForThisPackage === 0) {
+                                                            row.vat_category = 'Package';
+                                                        } else if (giftVoucherPartForThisPackage >= grossValue) {
+                                                            row.vat_category = 'Package (Paid by Gift Voucher)';
+                                                        } else {
+                                                            row.vat_category = 'Package (Partial Gift Voucher)';
+                                                        }
                                                     }
                                                 } else {
                                                     row.vat_rate = vatRateAppointment;
@@ -396,19 +396,22 @@
                                                             row.vat_amount = (grossValue * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
                                                             
                                                             // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                            let giftVoucherPartForThisProduct = 0;
                                                             if (giftVoucherForProducts > 0) {
-                                                                const giftVoucherPart = Math.min(grossValue, giftVoucherForProducts);
-                                                                giftVoucherForProducts -= giftVoucherPart;
-                                                                row._giftVoucherPart = giftVoucherPart;
-                                                                row._amountToTax = grossValue - giftVoucherPart;
+                                                                giftVoucherPartForThisProduct = Math.min(grossValue, giftVoucherForProducts);
+                                                                giftVoucherForProducts -= giftVoucherPartForThisProduct;
+                                                                row._giftVoucherPart = giftVoucherPartForThisProduct;
+                                                                row._amountToTax = grossValue - giftVoucherPartForThisProduct;
                                                             }
                                                             
-                                                            const hasOtherPayment = group.some(r => {
-                                                                const t = r.transaction?.toLowerCase() || '';
-                                                                const gv = parseFloat(r.gross_value) || 0;
-                                                                return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
-                                                            });
-                                                            row.vat_category = hasOtherPayment ? specificProductCategoryName + ' (Partial Gift Voucher)' : specificProductCategoryName + ' (Paid by Gift Voucher)';
+                                                            // Déterminer la catégorie selon le % couvert par BC
+                                                            if (giftVoucherPartForThisProduct === 0) {
+                                                                row.vat_category = specificProductCategoryName;
+                                                            } else if (giftVoucherPartForThisProduct >= grossValue) {
+                                                                row.vat_category = specificProductCategoryName + ' (Paid by Gift Voucher)';
+                                                            } else {
+                                                                row.vat_category = specificProductCategoryName + ' (Partial Gift Voucher)';
+                                                            }
                                                         }
                                                     } else {
                                                         row.vat_rate = vatRateProductSpecific;
@@ -445,24 +448,21 @@
                                                             row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
                                                             
                                                             // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                            let giftVoucherPartForThisProduct = 0;
                                                             if (giftVoucherForProducts > 0) {
-                                                                const giftVoucherPart = Math.min(grossValue, giftVoucherForProducts);
-                                                                giftVoucherForProducts -= giftVoucherPart;
-                                                                row._giftVoucherPart = giftVoucherPart;
-                                                                row._amountToTax = grossValue - giftVoucherPart;
+                                                                giftVoucherPartForThisProduct = Math.min(grossValue, giftVoucherForProducts);
+                                                                giftVoucherForProducts -= giftVoucherPartForThisProduct;
+                                                                row._giftVoucherPart = giftVoucherPartForThisProduct;
+                                                                row._amountToTax = grossValue - giftVoucherPartForThisProduct;
                                                             }
                                                             
-                                                            // Vérifier si c'est 100% BC ou mixte
-                                                            const hasOtherPayment = group.some(r => {
-                                                                const t = r.transaction?.toLowerCase() || '';
-                                                                const gv = parseFloat(r.gross_value) || 0;
-                                                                return gv < 0 && t !== 'gift_voucher_applied' && t !== 'gift_vouhcher_applied';
-                                                            });
-                                                            
-                                                            if (hasOtherPayment) {
-                                                                row.vat_category = 'Product (Partial Gift Voucher)';
-                                                            } else {
+                                                            // Déterminer la catégorie selon le % couvert par BC
+                                                            if (giftVoucherPartForThisProduct === 0) {
+                                                                row.vat_category = 'Product';
+                                                            } else if (giftVoucherPartForThisProduct >= grossValue) {
                                                                 row.vat_category = 'Product (Paid by Gift Voucher)';
+                                                            } else {
+                                                                row.vat_category = 'Product (Partial Gift Voucher)';
                                                             }
                                                         }
                                                     } else {
