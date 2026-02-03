@@ -1147,7 +1147,19 @@
                         summary.packages.tva += tva;
                         summary.packages.ht += ht;
                         
-                        } if (row.vat_category === 'Package (Partial Gift Voucher)') {
+                        if (row.vat_category === 'Package (Paid by Gift Voucher)') {
+                            summary.packagesGiftVoucher.ttc += ttc;
+                            
+                            // Si vat_amount existe = TVA BC à 0% donc TVA déclarée au moment de l'utilisation
+                            // Si vat_amount vide = TVA BC > 0% donc TVA déjà déclarée à l'achat
+                            if (row.vat_amount && row.vat_rate !== '') {
+                                summary.packagesGiftVoucher.tva += tva;
+                                summary.packagesGiftVoucher.ht += ht;
+                            } else {
+                                summary.packagesGiftVoucher.tva += 0;
+                                summary.packagesGiftVoucher.ht += ttc;
+                            }
+                        } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
                             let giftVoucherPart = 0;
                             let amountToTax = 0;
                             
