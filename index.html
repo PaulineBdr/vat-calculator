@@ -1073,7 +1073,6 @@
                     const ht = ttc - tva;
         
                     // Ajouter au total SEULEMENT si la TVA est réellement calculée
-                    if (row.vat_amount && row.vat_rate !== '') {
                         summary.total.ttc += ttc;
                         summary.total.tva += tva;
                         summary.total.ht += ht;
