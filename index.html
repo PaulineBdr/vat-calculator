@@ -222,11 +222,11 @@
                                         // Calculate proportional gift voucher allocation
                                         let amountToTax = grossValue;
                                         
-                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0 && giftVoucherForAppointments > 0) {
+                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && giftVoucherForAppointments > 0) {
                                             // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
-                                            // Calculate proportion of this appointment
-                                            const proportion = grossValue / totalAppointments;
-                                            const giftVoucherPart = proportion * giftVoucherForAppointments;
+                                            // Application séquentielle : on consomme le BC au fur et à mesure
+                                            const giftVoucherPart = Math.min(grossValue, giftVoucherForAppointments);
+                                            giftVoucherForAppointments -= giftVoucherPart; // Réduire le BC restant
                                             // Amount to tax = total - gift voucher part (VAT already paid on gift voucher)
                                             amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                         }
@@ -260,10 +260,10 @@
                                                 row.vat_rate = vatRateAppointment;
                                                 row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                                 
-                                                // Calculer la part bon cadeau pour le récapitulatif (avec priorité)
-                                                if (totalAppointments > 0 && giftVoucherForAppointments > 0) {
-                                                    const proportion = grossValue / totalAppointments;
-                                                    const giftVoucherPart = proportion * giftVoucherForAppointments;
+                                                // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                if (giftVoucherForAppointments > 0) {
+                                                    const giftVoucherPart = Math.min(grossValue, giftVoucherForAppointments);
+                                                    giftVoucherForAppointments -= giftVoucherPart; // Réduire le BC restant
                                                     row._giftVoucherPart = giftVoucherPart;
                                                     row._amountToTax = grossValue - giftVoucherPart;
                                                 }
@@ -305,13 +305,13 @@
                                             if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
                                                 if (isPackage && totalPackages > 0 && giftVoucherForPackages > 0) {
                                                     // Calcul pour les forfaits
-                                                    const proportion = grossValue / totalPackages;
-                                                    const giftVoucherPart = proportion * giftVoucherForPackages;
+                                                    const giftVoucherPart = Math.min(grossValue, giftVoucherForPackages);
+                                                    giftVoucherForPackages -= giftVoucherPart;
                                                     amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                                 } else if (isProduct && totalProducts > 0 && giftVoucherForProducts > 0) {
                                                     // Calcul pour les produits
-                                                    const proportion = grossValue / totalProducts;
-                                                    const giftVoucherPart = proportion * giftVoucherForProducts;
+                                                    const giftVoucherPart = Math.min(grossValue, giftVoucherForProducts);
+                                                    giftVoucherForProducts -= giftVoucherPart;
                                                     amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                                 }
                                             }
@@ -341,10 +341,10 @@
                                                         row.vat_rate = vatRateAppointment;
                                                         row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                                         
-                                                        // Calculer la part bon cadeau pour le récapitulatif (avec priorité)
-                                                        if (totalPackages > 0 && giftVoucherForPackages > 0) {
-                                                            const proportion = grossValue / totalPackages;
-                                                            const giftVoucherPart = proportion * giftVoucherForPackages;
+                                                        // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                        if (giftVoucherForPackages > 0) {
+                                                            const giftVoucherPart = Math.min(grossValue, giftVoucherForPackages);
+                                                            giftVoucherForPackages -= giftVoucherPart;
                                                             row._giftVoucherPart = giftVoucherPart;
                                                             row._amountToTax = grossValue - giftVoucherPart;
                                                         }
@@ -395,10 +395,10 @@
                                                             row.vat_rate = vatRateProductSpecific;
                                                             row.vat_amount = (grossValue * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
                                                             
-                                                            // Calculer la part bon cadeau pour le récapitulatif (avec priorité)
-                                                            if (totalProducts > 0 && giftVoucherForProducts > 0) {
-                                                                const proportion = grossValue / totalProducts;
-                                                                const giftVoucherPart = proportion * giftVoucherForProducts;
+                                                            // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                            if (giftVoucherForProductSpecific > 0) {
+                                                                const giftVoucherPart = Math.min(grossValue, giftVoucherForProductSpecific);
+                                                                giftVoucherForProductSpecific -= giftVoucherPart;
                                                                 row._giftVoucherPart = giftVoucherPart;
                                                                 row._amountToTax = grossValue - giftVoucherPart;
                                                             }
@@ -444,10 +444,10 @@
                                                             row.vat_rate = vatRateProduct;
                                                             row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
                                                             
-                                                            // Calculer la part bon cadeau pour le récapitulatif (avec priorité)
-                                                            if (totalProducts > 0 && giftVoucherForProducts > 0) {
-                                                                const proportion = grossValue / totalProducts;
-                                                                const giftVoucherPart = proportion * giftVoucherForProducts;
+                                                            // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
+                                                            if (giftVoucherForProducts > 0) {
+                                                                const giftVoucherPart = Math.min(grossValue, giftVoucherForProducts);
+                                                                giftVoucherForProducts -= giftVoucherPart;
                                                                 row._giftVoucherPart = giftVoucherPart;
                                                                 row._amountToTax = grossValue - giftVoucherPart;
                                                             }
