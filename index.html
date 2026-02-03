@@ -166,7 +166,12 @@
                             });
                             // Calculate totals for proportional gift voucher allocation
                             let totalAppointments = 0;
+                            let totalProducts = 0;
+                            let totalPackages = 0;
                             let giftVoucherAmount = 0;
+                            let giftVoucherForAppointments = 0;
+                            let giftVoucherForProducts = 0;
+                            let giftVoucherForPackages = 0;
                             
                             group.forEach(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
@@ -175,10 +180,38 @@
                                 if (transaction === 'appointment' && grossValue > 0) {
                                     totalAppointments += grossValue;
                                 }
+                                if (transaction === 'product_sale' && grossValue > 0) {
+                                    totalProducts += grossValue;
+                                }
+                                if (transaction === 'package_sale' && grossValue > 0) {
+                                    totalPackages += grossValue;
+                                }
                                 if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
                                     giftVoucherAmount += Math.abs(grossValue);
                                 }
                             });
+                            
+                            // Calculer la part de bon cadeau à allouer à chaque type
+                            const totalPositive = totalAppointments + totalProducts + totalPackages;
+                            if (totalPositive > 0 && giftVoucherAmount > 0) {
+                                // Allouer le bon cadeau en priorité : Appointments > Packages > Products
+                                let remaining = giftVoucherAmount;
+                                
+                                if (totalAppointments > 0 && remaining > 0) {
+                                    giftVoucherForAppointments = Math.min(remaining, totalAppointments);
+                                    remaining -= giftVoucherForAppointments;
+                                }
+                                
+                                if (totalPackages > 0 && remaining > 0) {
+                                    giftVoucherForPackages = Math.min(remaining, totalPackages);
+                                    remaining -= giftVoucherForPackages;
+                                }
+                                
+                                if (totalProducts > 0 && remaining > 0) {
+                                    giftVoucherForProducts = Math.min(remaining, totalProducts);
+                                    remaining -= giftVoucherForProducts;
+                                }
+                            }
                             group.forEach(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
                                 const type = row.type?.toLowerCase() || '';
@@ -189,24 +222,14 @@
                                         // Calculate proportional gift voucher allocation
                                         let amountToTax = grossValue;
                                         
-                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0) {
+                                        if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalAppointments > 0 && giftVoucherForAppointments > 0) {
                                             // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
                                             // Calculate proportion of this appointment
                                             const proportion = grossValue / totalAppointments;
-                                            const giftVoucherPart = proportion * Math.abs(giftVoucherAmount);
+                                            const giftVoucherPart = proportion * giftVoucherForAppointments;
                                             // Amount to tax = total - gift voucher part (VAT already paid on gift voucher)
-                                            amountToTax = grossValue - giftVoucherPart;
-                                            console.log('=== DEBUG ===');
-                                            console.log('Service:', type);
-                                            console.log('Total appointments:', totalAppointments);
-                                            console.log('Gift voucher amount:', giftVoucherAmount);
-                                            console.log('This service TTC:', grossValue);
-                                            console.log('Proportion:', proportion);
-                                            console.log('Gift voucher part:', giftVoucherPart);
-                                            console.log('Amount to tax:', amountToTax);
-                                            console.log('vatRateGiftVoucher:', vatRateGiftVoucher);
+                                            amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                         }
-                                        
                                        // Déterminer la catégorie et calculer la TVA
                                         if (hasGiftVoucherPayment) {
                                             if (vatRateGiftVoucher > 0) {
@@ -278,24 +301,20 @@
                                         } else {
                                             // Pour produits et forfaits : calcul de proportion si payé partiellement par gift voucher
                                             let amountToTax = grossValue;
-                                            let totalProducts = 0;
                                             
-                                            // Calculer le total des produits/forfaits dans ce paiement
-                                            group.forEach(r => {
-                                                const t = r.transaction?.toLowerCase() || '';
-                                                const gv = parseFloat(r.gross_value) || 0;
-                                                if ((t === 'product_sale' || t === 'package_sale') && gv > 0) {
-                                                    totalProducts += gv;
+                                            if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
+                                                if (isPackage && totalPackages > 0 && giftVoucherForPackages > 0) {
+                                                    // Calcul pour les forfaits
+                                                    const proportion = grossValue / totalPackages;
+                                                    const giftVoucherPart = proportion * giftVoucherForPackages;
+                                                    amountToTax = Math.max(0, grossValue - giftVoucherPart);
+                                                } else if (isProduct && totalProducts > 0 && giftVoucherForProducts > 0) {
+                                                    // Calcul pour les produits
+                                                    const proportion = grossValue / totalProducts;
+                                                    const giftVoucherPart = proportion * giftVoucherForProducts;
+                                                    amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                                 }
-                                            });
-                                            
-                                            if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalProducts > 0) {
-                                                // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
-                                                const proportion = grossValue / totalProducts;
-                                                const giftVoucherPart = proportion * Math.abs(giftVoucherAmount);
-                                                amountToTax = grossValue - giftVoucherPart;
                                             }
-                                            
                                             if (isPackage) {
                                                 // ===== FORFAIT =====
                                                 if (hasGiftVoucherPayment) {
