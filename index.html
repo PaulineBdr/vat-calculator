@@ -1082,20 +1082,29 @@
                             let giftVoucherPart = 0;
                             let amountToTax = 0;
                             
-                            if (row._giftVoucherPart !== undefined) {
+                            // Extraire depuis [taxé:XX.XX€] si présent
+                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                            if (match) {
+                                // Si [taxé:XX.XX€] existe = TVA BC > 0%
+                                // La TVA n'est calculée QUE sur amountToTax
+                                amountToTax = parseFloat(match[1]);
+                                giftVoucherPart = ttc - amountToTax;
+                                
+                                // Part bon cadeau (TVA = 0, déjà payée à l'achat)
+                                summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
+                                summary.appointmentsGiftVoucher.tva += 0;
+                                summary.appointmentsGiftVoucher.ht += giftVoucherPart;
+                                
+                                // Part autre paiement (avec TOUTE la TVA)
+                                summary.appointmentsOther.ttc += amountToTax;
+                                summary.appointmentsOther.tva += tva;
+                                summary.appointmentsOther.ht += amountToTax - tva;
+                            } else if (row._giftVoucherPart !== undefined) {
+                                // Si pas de [taxé:] mais _giftVoucherPart existe = TVA BC = 0%
+                                // La TVA est calculée sur TOUT, on répartit proportionnellement
                                 giftVoucherPart = row._giftVoucherPart;
                                 amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                            } else {
-                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                                if (match) {
-                                    amountToTax = parseFloat(match[1]);
-                                    giftVoucherPart = ttc - amountToTax;
-                                }
-                            }
-                            
-                            if (giftVoucherPart > 0) {
-                                // La TVA totale a été calculée sur TOUT le montant
-                                // On répartit proportionnellement
+                                
                                 const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
                                 const otherTVA = tva - giftVoucherTVA;
                                 
@@ -1136,29 +1145,31 @@
                             let giftVoucherPart = 0;
                             let amountToTax = 0;
                             
-                            if (row._giftVoucherPart !== undefined) {
+                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                            if (match) {
+                                // TVA BC > 0% : TVA uniquement sur amountToTax
+                                amountToTax = parseFloat(match[1]);
+                                giftVoucherPart = ttc - amountToTax;
+                                
+                                summary.packagesGiftVoucher.ttc += giftVoucherPart;
+                                summary.packagesGiftVoucher.tva += 0;
+                                summary.packagesGiftVoucher.ht += giftVoucherPart;
+                                
+                                summary.packagesOther.ttc += amountToTax;
+                                summary.packagesOther.tva += tva;
+                                summary.packagesOther.ht += amountToTax - tva;
+                            } else if (row._giftVoucherPart !== undefined) {
+                                // TVA BC = 0% : répartition proportionnelle
                                 giftVoucherPart = row._giftVoucherPart;
                                 amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                            } else {
-                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                                if (match) {
-                                    amountToTax = parseFloat(match[1]);
-                                    giftVoucherPart = ttc - amountToTax;
-                                }
-                            }
-                            
-                            if (giftVoucherPart > 0) {
-                                // La TVA totale a été calculée sur TOUT le montant
-                                // On répartit proportionnellement
+                                
                                 const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
                                 const otherTVA = tva - giftVoucherTVA;
                                 
-                                // Part bon cadeau
                                 summary.packagesGiftVoucher.ttc += giftVoucherPart;
                                 summary.packagesGiftVoucher.tva += giftVoucherTVA;
                                 summary.packagesGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
                                 
-                                // Part autre paiement
                                 summary.packagesOther.ttc += amountToTax;
                                 summary.packagesOther.tva += otherTVA;
                                 summary.packagesOther.ht += amountToTax - otherTVA;
@@ -1186,34 +1197,34 @@
                                 summary.productsGiftVoucher.ht += ttc;
                             }
                         } else if (row.vat_category === 'Product (Partial Gift Voucher)') {
-                            // Extraire les valeurs stockées
                             let giftVoucherPart = 0;
                             let amountToTax = 0;
                             
-                            if (row._giftVoucherPart !== undefined) {
+                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                            if (match) {
+                                // TVA BC > 0% : TVA uniquement sur amountToTax
+                                amountToTax = parseFloat(match[1]);
+                                giftVoucherPart = ttc - amountToTax;
+                                
+                                summary.productsGiftVoucher.ttc += giftVoucherPart;
+                                summary.productsGiftVoucher.tva += 0;
+                                summary.productsGiftVoucher.ht += giftVoucherPart;
+                                
+                                summary.productsOther.ttc += amountToTax;
+                                summary.productsOther.tva += tva;
+                                summary.productsOther.ht += amountToTax - tva;
+                            } else if (row._giftVoucherPart !== undefined) {
+                                // TVA BC = 0% : répartition proportionnelle
                                 giftVoucherPart = row._giftVoucherPart;
                                 amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                            } else {
-                                // Fallback : extraire depuis [taxé:XX.XX€]
-                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                                if (match) {
-                                    amountToTax = parseFloat(match[1]);
-                                    giftVoucherPart = ttc - amountToTax;
-                                }
-                            }
-                            
-                            if (giftVoucherPart > 0) {
-                                // La TVA totale a été calculée sur TOUT le montant
-                                // On répartit proportionnellement
+                                
                                 const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
                                 const otherTVA = tva - giftVoucherTVA;
                                 
-                                // Part bon cadeau
                                 summary.productsGiftVoucher.ttc += giftVoucherPart;
                                 summary.productsGiftVoucher.tva += giftVoucherTVA;
                                 summary.productsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
                                 
-                                // Part autre paiement
                                 summary.productsOther.ttc += amountToTax;
                                 summary.productsOther.tva += otherTVA;
                                 summary.productsOther.ht += amountToTax - otherTVA;
@@ -1242,29 +1253,31 @@
                             let giftVoucherPart = 0;
                             let amountToTax = 0;
                             
-                            if (row._giftVoucherPart !== undefined) {
+                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                            if (match) {
+                                // TVA BC > 0% : TVA uniquement sur amountToTax
+                                amountToTax = parseFloat(match[1]);
+                                giftVoucherPart = ttc - amountToTax;
+                                
+                                summary.specificProductsGiftVoucher.ttc += giftVoucherPart;
+                                summary.specificProductsGiftVoucher.tva += 0;
+                                summary.specificProductsGiftVoucher.ht += giftVoucherPart;
+                                
+                                summary.specificProductsOther.ttc += amountToTax;
+                                summary.specificProductsOther.tva += tva;
+                                summary.specificProductsOther.ht += amountToTax - tva;
+                            } else if (row._giftVoucherPart !== undefined) {
+                                // TVA BC = 0% : répartition proportionnelle
                                 giftVoucherPart = row._giftVoucherPart;
                                 amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                            } else {
-                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                                if (match) {
-                                    amountToTax = parseFloat(match[1]);
-                                    giftVoucherPart = ttc - amountToTax;
-                                }
-                            }
-                            
-                            if (giftVoucherPart > 0) {
-                                // La TVA totale a été calculée sur TOUT le montant
-                                // On répartit proportionnellement
+                                
                                 const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
                                 const otherTVA = tva - giftVoucherTVA;
                                 
-                                // Part bon cadeau
                                 summary.specificProductsGiftVoucher.ttc += giftVoucherPart;
                                 summary.specificProductsGiftVoucher.tva += giftVoucherTVA;
                                 summary.specificProductsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
                                 
-                                // Part autre paiement
                                 summary.specificProductsOther.ttc += amountToTax;
                                 summary.specificProductsOther.tva += otherTVA;
                                 summary.specificProductsOther.ht += amountToTax - otherTVA;
