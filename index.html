@@ -396,9 +396,9 @@
                                                             row.vat_amount = (grossValue * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
                                                             
                                                             // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
-                                                            if (giftVoucherForProductSpecific > 0) {
-                                                                const giftVoucherPart = Math.min(grossValue, giftVoucherForProductSpecific);
-                                                                giftVoucherForProductSpecific -= giftVoucherPart;
+                                                            if (giftVoucherForProducts > 0) {
+                                                                const giftVoucherPart = Math.min(grossValue, giftVoucherForProducts);
+                                                                giftVoucherForProducts -= giftVoucherPart;
                                                                 row._giftVoucherPart = giftVoucherPart;
                                                                 row._amountToTax = grossValue - giftVoucherPart;
                                                             }
@@ -1147,19 +1147,7 @@
                         summary.packages.tva += tva;
                         summary.packages.ht += ht;
                         
-                        if (row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
-                            if (row.vat_amount && row.vat_rate !== '') {
-                                // TVA BC = 0% : TVA déclarée au moment de l'utilisation
-                                summary.specificProductsOther.ttc += ttc;
-                                summary.specificProductsOther.tva += tva;
-                                summary.specificProductsOther.ht += ht;
-                            } else {
-                                // TVA BC > 0% : TVA déclarée à l'achat du BC
-                                summary.specificProductsGiftVoucher.ttc += ttc;
-                                summary.specificProductsGiftVoucher.tva += 0;
-                                summary.specificProductsGiftVoucher.ht += ttc;
-                            }
-                        } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
+                        } if (row.vat_category === 'Package (Partial Gift Voucher)') {
                             let giftVoucherPart = 0;
                             let amountToTax = 0;
                             
