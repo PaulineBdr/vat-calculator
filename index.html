@@ -193,7 +193,7 @@
                                             // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
                                             // Calculate proportion of this appointment
                                             const proportion = grossValue / totalAppointments;
-                                            const giftVoucherPart = proportion * giftVoucherAmount;
+                                            const giftVoucherPart = proportion * Math.abs(giftVoucherAmount);
                                             // Amount to tax = total - gift voucher part (VAT already paid on gift voucher)
                                             amountToTax = grossValue - giftVoucherPart;
                                             console.log('=== DEBUG ===');
@@ -292,7 +292,7 @@
                                             if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && totalProducts > 0) {
                                                 // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
                                                 const proportion = grossValue / totalProducts;
-                                                const giftVoucherPart = proportion * giftVoucherAmount;
+                                                const giftVoucherPart = proportion * Math.abs(giftVoucherAmount);
                                                 amountToTax = grossValue - giftVoucherPart;
                                             }
                                             
