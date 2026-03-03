@@ -616,16 +616,38 @@
                     vatSummaryData.push([translate('Gift Vouchers'), summary.giftVouchers.ht.toFixed(2) + ' €', summary.giftVouchers.tva.toFixed(2) + ' €', summary.giftVouchers.ttc.toFixed(2) + ' €']);
                 }
 
-                // Tips - separate section with accountant note
+                // Tips + reconciliation block
                 if (summary.tips.ttc > 0) {
                     vatSummaryData.push([]);
+                    // Separator label
                     vatSummaryData.push([
                         exportLanguage === 'fr'
-                            ? '💰 Pourboires (hors TVA déclarable - à vérifier avec votre comptable)'
-                            : '💰 Tips (excl. declarable VAT - verify with your accountant)',
+                            ? '── Rapprochement CA / Encaissements ──'
+                            : '── Revenue / Collections Reconciliation ──',
+                        '', '', ''
+                    ]);
+                    // CA déclarable (= total already shown above)
+                    vatSummaryData.push([
+                        exportLanguage === 'fr' ? '  CA Déclarable (hors pourboires)' : '  Declarable Revenue (excl. tips)',
+                        summary.total.ht.toFixed(2) + ' €',
+                        summary.total.tva.toFixed(2) + ' €',
+                        summary.total.ttc.toFixed(2) + ' €'
+                    ]);
+                    // Tips line
+                    vatSummaryData.push([
+                        exportLanguage === 'fr'
+                            ? '  💰 Pourboires (hors CA - à vérifier avec votre comptable)'
+                            : '  💰 Tips (excl. revenue - verify with your accountant)',
                         summary.tips.ttc.toFixed(2) + ' €',
                         '0.00 €',
                         summary.tips.ttc.toFixed(2) + ' €'
+                    ]);
+                    // Total encaissé = CA + tips
+                    vatSummaryData.push([
+                        exportLanguage === 'fr' ? '  = Total Encaissé (CA + Pourboires)' : '  = Total Collected (Revenue + Tips)',
+                        (summary.total.ht + summary.tips.ttc).toFixed(2) + ' €',
+                        summary.total.tva.toFixed(2) + ' €',
+                        (summary.total.ttc + summary.tips.ttc).toFixed(2) + ' €'
                     ]);
                 }
                 
@@ -1484,20 +1506,40 @@
                                                     </tr>
                                                 )}
 
-                                                {/* Tips - separate row with visual separator and accountant note */}
+                                                {/* Tips - reconciliation block */}
                                                 {summary.tips.ttc > 0 && (
                                                     <>
-                                                        <tr><td colSpan="4" className="px-4 py-1 bg-gray-100 border-t-2 border-gray-300"></td></tr>
-                                                        <tr className="bg-amber-50 hover:bg-amber-100 border border-amber-300">
-                                                            <td className="px-4 py-3 text-amber-800">
-                                                                <div className="font-semibold">💰 {exportLanguage === 'fr' ? 'Pourboires' : 'Tips'}</div>
-                                                                <div className="text-xs text-amber-600 mt-1">
-                                                                    ⚠️ {exportLanguage === 'fr' ? 'Hors TVA déclarable — à vérifier avec votre comptable' : 'Excl. from declarable VAT — verify with your accountant'}
-                                                                </div>
+                                                        {/* Separator */}
+                                                        <tr><td colSpan="4" className="px-4 py-2 bg-gray-100 border-t-2 border-gray-300 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                                            {exportLanguage === 'fr' ? '── Rapprochement CA / Encaissements ──' : '── Revenue / Collections Reconciliation ──'}
+                                                        </td></tr>
+                                                        {/* CA déclarable */}
+                                                        <tr className="bg-amber-50">
+                                                            <td className="px-4 py-3 text-amber-900 text-sm pl-6">
+                                                                {exportLanguage === 'fr' ? 'CA Déclarable (hors pourboires)' : 'Declarable Revenue (excl. tips)'}
                                                             </td>
-                                                            <td className="px-4 py-3 text-right text-amber-800">{formatCurrency(summary.tips.ttc)}</td>
-                                                            <td className="px-4 py-3 text-right text-amber-600 text-sm">0.00 €</td>
-                                                            <td className="px-4 py-3 text-right font-semibold text-amber-800">{formatCurrency(summary.tips.ttc)}</td>
+                                                            <td className="px-4 py-3 text-right text-sm text-amber-900">{formatCurrency(summary.total.ht)}</td>
+                                                            <td className="px-4 py-3 text-right text-sm text-amber-900">{formatCurrency(summary.total.tva)}</td>
+                                                            <td className="px-4 py-3 text-right text-sm font-semibold text-amber-900">{formatCurrency(summary.total.ttc)}</td>
+                                                        </tr>
+                                                        {/* Pourboires */}
+                                                        <tr className="bg-amber-50 hover:bg-amber-100 border border-amber-200">
+                                                            <td className="px-4 py-3 text-amber-800 pl-6">
+                                                                <div className="text-sm">💰 {exportLanguage === 'fr' ? 'Pourboires (hors CA)' : 'Tips (excl. revenue)'}</div>
+                                                                <div className="text-xs text-amber-600 mt-0.5">⚠️ {exportLanguage === 'fr' ? 'À vérifier avec votre comptable' : 'Verify with your accountant'}</div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right text-sm text-amber-700">{formatCurrency(summary.tips.ttc)}</td>
+                                                            <td className="px-4 py-3 text-right text-sm text-amber-500">0.00 €</td>
+                                                            <td className="px-4 py-3 text-right text-sm font-semibold text-amber-700">{formatCurrency(summary.tips.ttc)}</td>
+                                                        </tr>
+                                                        {/* Total encaissé */}
+                                                        <tr className="bg-amber-100 border-t-2 border-amber-400">
+                                                            <td className="px-4 py-3 text-amber-900 font-bold pl-6">
+                                                                {exportLanguage === 'fr' ? '= Total Encaissé (CA + Pourboires)' : '= Total Collected (Revenue + Tips)'}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right font-bold text-amber-900">{formatCurrency(summary.total.ht + summary.tips.ttc)}</td>
+                                                            <td className="px-4 py-3 text-right font-bold text-amber-900">{formatCurrency(summary.total.tva)}</td>
+                                                            <td className="px-4 py-3 text-right font-bold text-amber-900">{formatCurrency(summary.total.ttc + summary.tips.ttc)}</td>
                                                         </tr>
                                                     </>
                                                 )}
