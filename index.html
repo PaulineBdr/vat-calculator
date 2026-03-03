@@ -27,7 +27,6 @@
     <script type="text/babel">
         const { useState } = React;
 
-        // Lucide Icons as SVG components
         const Upload = () => (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
@@ -79,10 +78,11 @@
                     const translations = {
                         'Appointment': 'Rendez-vous',
                         'Appointment (Paid by Gift Voucher)': 'Rendez-vous (Payé par Bon Cadeau)',
-                        'Appointment (Partial Gift Voucher)': 'Rendez-vous (Bon Cadeau Partiel)',  // AJOUTER CETTE LIGNE
+                        'Appointment (Partial Gift Voucher)': 'Rendez-vous (Bon Cadeau Partiel)',
                         'Package': 'Forfait',
                         'Product': 'Produit',
-                        'Gift Voucher': 'Bon Cadeau'
+                        'Gift Voucher': 'Bon Cadeau',
+                        'Tip': 'Pourboire'
                     };
                     return translations[category] || category;
                 }
@@ -129,8 +129,6 @@
                             headers.forEach((header, index) => {
                                 const cleanHeader = header.trim().toLowerCase();
                                 row[header] = values[index] || '';
-                                
-                                // Copier aussi dans 'Heure et jour' si c'est la colonne datetime
                                 if (cleanHeader === 'datetime' || cleanHeader === 'date and time' || cleanHeader === 'date_and_time' || cleanHeader === 'heure et jour') {
                                     row['Heure et jour'] = values[index] || '';
                                 }
@@ -159,12 +157,12 @@
                                        transaction.includes('cash') ||
                                        transaction.includes('card');
                             });
-                            // Check whether a gift voucher has been used for this payment.
+
                             const hasGiftVoucherPayment = group.some(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
                                 return transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied';
                             });
-                            // Calculate totals for proportional gift voucher allocation
+
                             let totalAppointments = 0;
                             let totalProducts = 0;
                             let totalPackages = 0;
@@ -177,90 +175,75 @@
                                 const transaction = row.transaction?.toLowerCase() || '';
                                 const grossValue = parseFloat(row.gross_value) || 0;
                                 
-                                if (transaction === 'appointment' && grossValue > 0) {
-                                    totalAppointments += grossValue;
-                                }
-                                if (transaction === 'product_sale' && grossValue > 0) {
-                                    totalProducts += grossValue;
-                                }
-                                if (transaction === 'package_sale' && grossValue > 0) {
-                                    totalPackages += grossValue;
-                                }
+                                if (transaction === 'appointment' && grossValue > 0) totalAppointments += grossValue;
+                                if (transaction === 'product_sale' && grossValue > 0) totalProducts += grossValue;
+                                if (transaction === 'package_sale' && grossValue > 0) totalPackages += grossValue;
                                 if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
                                     giftVoucherAmount += Math.abs(grossValue);
                                 }
                             });
                             
-                            // Calculer la part de bon cadeau à allouer à chaque type
                             const totalPositive = totalAppointments + totalProducts + totalPackages;
                             if (totalPositive > 0 && giftVoucherAmount > 0) {
-                                // Allouer le bon cadeau en priorité : Appointments > Packages > Products
                                 let remaining = giftVoucherAmount;
-                                
                                 if (totalAppointments > 0 && remaining > 0) {
                                     giftVoucherForAppointments = Math.min(remaining, totalAppointments);
                                     remaining -= giftVoucherForAppointments;
                                 }
-                                
                                 if (totalPackages > 0 && remaining > 0) {
                                     giftVoucherForPackages = Math.min(remaining, totalPackages);
                                     remaining -= giftVoucherForPackages;
                                 }
-                                
                                 if (totalProducts > 0 && remaining > 0) {
                                     giftVoucherForProducts = Math.min(remaining, totalProducts);
                                     remaining -= giftVoucherForProducts;
                                 }
                             }
+
                             group.forEach(row => {
                                 const transaction = row.transaction?.toLowerCase() || '';
                                 const type = row.type?.toLowerCase() || '';
                                 const grossValue = parseFloat(row.gross_value) || 0;
+
+                                // ===== TIPS: processed independently, always =====
+                                if (transaction === 'tip') {
+                                    row.vat_rate = 0;
+                                    row.vat_amount = '0.00';
+                                    row.vat_category = 'Tip';
+                                    parsedData.push(row);
+                                    return; // skip the rest of the logic
+                                }
                                 
                                 if (hasPayment && grossValue > 0) {
                                     if (transaction === 'appointment') {
-                                        // Calculate proportional gift voucher allocation
                                         let amountToTax = grossValue;
                                         
                                         if (hasGiftVoucherPayment && vatRateGiftVoucher > 0 && giftVoucherForAppointments > 0) {
-                                            // Si TVA > 0% sur bon cadeau = TVA déjà payée à l'achat
-                                            // Application séquentielle : on consomme le BC au fur et à mesure
                                             const giftVoucherPart = Math.min(grossValue, giftVoucherForAppointments);
-                                            giftVoucherForAppointments -= giftVoucherPart; // Réduire le BC restant
-                                            // Amount to tax = total - gift voucher part (VAT already paid on gift voucher)
+                                            giftVoucherForAppointments -= giftVoucherPart;
                                             amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                         }
-                                       // Déterminer la catégorie et calculer la TVA
+
                                         if (hasGiftVoucherPayment) {
                                             if (vatRateGiftVoucher > 0) {
-                                                // TVA appliquée à l'achat du bon cadeau
-                                                // On ne taxe QUE la partie non payée par bon cadeau
                                                 const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                                
                                                 if (amountToTax === 0) {
-                                                    // 100% bon cadeau - Pas de TVA à déclarer au rdv
                                                     row.vat_rate = '';
                                                     row.vat_amount = '';
                                                     row.vat_category = 'Appointment (Paid by Gift Voucher)';
                                                 } else if (amountToTax < grossValue) {
-                                                    // Paiement mixte : afficher le montant taxé
                                                     row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
                                                     row.vat_rate = vatRateAppointment;
                                                     row.vat_amount = calculatedVAT;
                                                     row.vat_category = 'Appointment (Partial Gift Voucher)';
                                                 } else {
-                                                    // Pas de bon cadeau utilisé (ne devrait pas arriver)
                                                     row.vat_rate = vatRateAppointment;
                                                     row.vat_amount = calculatedVAT;
                                                     row.vat_category = 'Appointment';
                                                 }
                                             } else {
-                                                // TVA à 0% sur bon cadeau = TVA au moment du rdv
-                                                // On taxe TOUT le montant du rendez-vous
                                                 row.vat_rate = vatRateAppointment;
                                                 row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                                
-                                                // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
                                                 let giftVoucherPartForThisAppointment = 0;
                                                 if (giftVoucherForAppointments > 0) {
                                                     giftVoucherPartForThisAppointment = Math.min(grossValue, giftVoucherForAppointments);
@@ -268,8 +251,6 @@
                                                     row._giftVoucherPart = giftVoucherPartForThisAppointment;
                                                     row._amountToTax = grossValue - giftVoucherPartForThisAppointment;
                                                 }
-                                                
-                                                // Déterminer la catégorie selon le % couvert par BC
                                                 if (giftVoucherPartForThisAppointment === 0) {
                                                     row.vat_category = 'Appointment';
                                                 } else if (giftVoucherPartForThisAppointment >= grossValue) {
@@ -279,46 +260,36 @@
                                                 }
                                             }
                                         } else {
-                                            // Pas de bon cadeau
                                             row.vat_rate = vatRateAppointment;
                                             row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                             row.vat_category = 'Appointment';
                                         }
                                     } else if (transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') {
-                                        // Identifier le type de vente directement depuis transaction
                                         const isPackage = transaction === 'package_sale';
                                         const isGiftVoucher = transaction === 'gift_voucher_sale';
                                         const isProduct = transaction === 'product_sale';
                                         
-                                        // Pour les gift vouchers : pas de calcul de proportion (ne peuvent pas être payés par gift voucher)
                                         if (isGiftVoucher) {
                                             row.vat_amount = (grossValue * (vatRateGiftVoucher / (100 + vatRateGiftVoucher))).toFixed(2);
                                             row.vat_rate = vatRateGiftVoucher;
                                             row.vat_category = 'Gift Voucher';
                                         } else {
-                                            // Pour produits et forfaits : calcul de proportion si payé partiellement par gift voucher
                                             let amountToTax = grossValue;
-                                            
                                             if (hasGiftVoucherPayment && vatRateGiftVoucher > 0) {
                                                 if (isPackage && totalPackages > 0 && giftVoucherForPackages > 0) {
-                                                    // Calcul pour les forfaits
                                                     const giftVoucherPart = Math.min(grossValue, giftVoucherForPackages);
                                                     giftVoucherForPackages -= giftVoucherPart;
                                                     amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                                 } else if (isProduct && totalProducts > 0 && giftVoucherForProducts > 0) {
-                                                    // Calcul pour les produits
                                                     const giftVoucherPart = Math.min(grossValue, giftVoucherForProducts);
                                                     giftVoucherForProducts -= giftVoucherPart;
                                                     amountToTax = Math.max(0, grossValue - giftVoucherPart);
                                                 }
                                             }
                                             if (isPackage) {
-                                                // ===== FORFAIT =====
                                                 if (hasGiftVoucherPayment) {
                                                     if (vatRateGiftVoucher > 0) {
-                                                        // TVA appliquée à l'achat du bon cadeau
                                                         const calculatedVAT = (amountToTax * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                                        
                                                         if (amountToTax === 0) {
                                                             row.vat_rate = '';
                                                             row.vat_amount = '';
@@ -334,11 +305,8 @@
                                                             row.vat_category = 'Package';
                                                         }
                                                     } else {
-                                                        // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
                                                         row.vat_rate = vatRateAppointment;
                                                         row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
-                                                        
-                                                        // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
                                                         let giftVoucherPartForThisPackage = 0;
                                                         if (giftVoucherForPackages > 0) {
                                                             giftVoucherPartForThisPackage = Math.min(grossValue, giftVoucherForPackages);
@@ -346,8 +314,6 @@
                                                             row._giftVoucherPart = giftVoucherPartForThisPackage;
                                                             row._amountToTax = grossValue - giftVoucherPartForThisPackage;
                                                         }
-                                                        
-                                                        // Déterminer la catégorie selon le % couvert par BC
                                                         if (giftVoucherPartForThisPackage === 0) {
                                                             row.vat_category = 'Package';
                                                         } else if (giftVoucherPartForThisPackage >= grossValue) {
@@ -361,24 +327,17 @@
                                                     row.vat_amount = (grossValue * (vatRateAppointment / (100 + vatRateAppointment))).toFixed(2);
                                                     row.vat_category = 'Package';
                                                 }
-                                                
                                             } else if (isProduct) {
-                                                // ===== PRODUIT =====
                                                 const isSpecificProduct = enableSpecificProductRate && specificProdKw.some(keyword => type.includes(keyword));
-                                                
                                                 if (isSpecificProduct) {
-                                                    // Produit avec taux spécifique
                                                     if (hasGiftVoucherPayment) {
                                                         if (vatRateGiftVoucher > 0) {
-                                                            // TVA appliquée à l'achat du bon cadeau
                                                             const calculatedVAT = (amountToTax * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
-                                                            
                                                             if (amountToTax === 0) {
                                                                 row.vat_rate = '';
                                                                 row.vat_amount = '';
                                                                 row.vat_category = specificProductCategoryName + ' (Paid by Gift Voucher)';
                                                             } else if (amountToTax < grossValue) {
-                                                                // Stocker les valeurs pour le récapitulatif
                                                                 row._giftVoucherPart = grossValue - amountToTax;
                                                                 row._amountToTax = amountToTax;
                                                                 row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
@@ -391,11 +350,8 @@
                                                                 row.vat_category = specificProductCategoryName;
                                                             }
                                                         } else {
-                                                            // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
                                                             row.vat_rate = vatRateProductSpecific;
                                                             row.vat_amount = (grossValue * (vatRateProductSpecific / (100 + vatRateProductSpecific))).toFixed(2);
-                                                            
-                                                            // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
                                                             let giftVoucherPartForThisProduct = 0;
                                                             if (giftVoucherForProducts > 0) {
                                                                 giftVoucherPartForThisProduct = Math.min(grossValue, giftVoucherForProducts);
@@ -403,8 +359,6 @@
                                                                 row._giftVoucherPart = giftVoucherPartForThisProduct;
                                                                 row._amountToTax = grossValue - giftVoucherPartForThisProduct;
                                                             }
-                                                            
-                                                            // Déterminer la catégorie selon le % couvert par BC
                                                             if (giftVoucherPartForThisProduct === 0) {
                                                                 row.vat_category = specificProductCategoryName;
                                                             } else if (giftVoucherPartForThisProduct >= grossValue) {
@@ -419,18 +373,14 @@
                                                         row.vat_category = specificProductCategoryName;
                                                     }
                                                 } else {
-                                                    // Produit standard (pas de taux spécifique)
                                                     if (hasGiftVoucherPayment) {
                                                         if (vatRateGiftVoucher > 0) {
-                                                            // TVA appliquée à l'achat du bon cadeau
                                                             const calculatedVAT = (amountToTax * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
-                                                            
                                                             if (amountToTax === 0) {
                                                                 row.vat_rate = '';
                                                                 row.vat_amount = '';
                                                                 row.vat_category = 'Product (Paid by Gift Voucher)';
                                                             } else if (amountToTax < grossValue) {
-                                                                // Stocker les valeurs pour le récapitulatif
                                                                 row._giftVoucherPart = grossValue - amountToTax;
                                                                 row._amountToTax = amountToTax;
                                                                 row.type = row.type + ` [taxé:${amountToTax.toFixed(2)}€]`;
@@ -443,11 +393,8 @@
                                                                 row.vat_category = 'Product';
                                                             }
                                                         } else {
-                                                            // TVA à 0% sur bon cadeau = TVA au moment de l'utilisation
                                                             row.vat_rate = vatRateProduct;
                                                             row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
-                                                            
-                                                            // Calculer la part bon cadeau pour le récapitulatif (application séquentielle)
                                                             let giftVoucherPartForThisProduct = 0;
                                                             if (giftVoucherForProducts > 0) {
                                                                 giftVoucherPartForThisProduct = Math.min(grossValue, giftVoucherForProducts);
@@ -455,8 +402,6 @@
                                                                 row._giftVoucherPart = giftVoucherPartForThisProduct;
                                                                 row._amountToTax = grossValue - giftVoucherPartForThisProduct;
                                                             }
-                                                            
-                                                            // Déterminer la catégorie selon le % couvert par BC
                                                             if (giftVoucherPartForThisProduct === 0) {
                                                                 row.vat_category = 'Product';
                                                             } else if (giftVoucherPartForThisProduct >= grossValue) {
@@ -466,7 +411,6 @@
                                                             }
                                                         }
                                                     } else {
-                                                        // Pas de paiement par bon cadeau
                                                         row.vat_rate = vatRateProduct;
                                                         row.vat_amount = (grossValue * (vatRateProduct / (100 + vatRateProduct))).toFixed(2);
                                                         row.vat_category = 'Product';
@@ -527,7 +471,7 @@
                         escapeCSV(row.transaction),
                         escapeCSV(row.type),
                         escapeCSV(row.gross_value),
-                        escapeCSV(row.vat_rate ? row.vat_rate + '%' : ''),
+                        escapeCSV(row.vat_category === 'Tip' ? exportLanguage === 'fr' ? '0% (Pourboire - à vérifier)' : '0% (Tip - verify)' : row.vat_rate ? row.vat_rate + '%' : ''),
                         escapeCSV(row.vat_amount),
                         escapeCSV(translateCategory(row.vat_category)),
                         escapeCSV(row.shop),
@@ -577,7 +521,9 @@
                     row.transaction,
                     row.type,
                     parseFloat(row.gross_value) || 0,
-                    row.vat_rate ? row.vat_rate + '%' : '',
+                    row.vat_category === 'Tip'
+                        ? (exportLanguage === 'fr' ? '0% (Pourboire - à vérifier)' : '0% (Tip - verify)')
+                        : row.vat_rate ? row.vat_rate + '%' : '',
                     parseFloat(row.vat_amount) || '',
                     translateCategory(row.vat_category) || '',
                     row.shop,
@@ -593,7 +539,7 @@
                 const wsDetails = XLSX.utils.aoa_to_sheet([detailsHeaders, ...detailsData]);
                 wsDetails['!cols'] = [
                     { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 12 },
-                    { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 15 },
+                    { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 15 },
                     { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
                 ];
                 XLSX.utils.book_append_sheet(wb, wsDetails, exportLanguage === 'fr' ? 'Détails Complets' : 'Full Details');
@@ -615,8 +561,7 @@
                     ]
                 ];
                 
-                // Ajouter "Total hors BC" seulement si des BC ont été utilisés
-               if (summary.appointmentsGiftVoucher.ttc > 0) {
+                if (summary.appointmentsGiftVoucher.ttc > 0) {
                     vatSummaryData.push([
                         translate('Total Period (Excl. Gift Voucher Payments)'),
                         (summary.total.ht - summary.appointmentsGiftVoucher.ht - summary.packagesGiftVoucher.ht - summary.productsGiftVoucher.ht - summary.specificProductsGiftVoucher.ht).toFixed(2) + ' €',
@@ -629,143 +574,63 @@
                 
                 if (summary.appointments.ttc > 0) {
                     if (summary.appointmentsGiftVoucher.ttc > 0) {
-                        // Afficher le détail avec sous-catégories
-                        vatSummaryData.push([
-                            translate('Appointments (Total)'),
-                            summary.appointments.ht.toFixed(2) + ' €',
-                            summary.appointments.tva.toFixed(2) + ' €',
-                            summary.appointments.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Gift Voucher'),
-                            summary.appointmentsGiftVoucher.ht.toFixed(2) + ' €',
-                            summary.appointmentsGiftVoucher.tva.toFixed(2) + ' €',
-                            summary.appointmentsGiftVoucher.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Other Methods'),
-                            summary.appointmentsOther.ht.toFixed(2) + ' €',
-                            summary.appointmentsOther.tva.toFixed(2) + ' €',
-                            summary.appointmentsOther.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([translate('Appointments (Total)'), summary.appointments.ht.toFixed(2) + ' €', summary.appointments.tva.toFixed(2) + ' €', summary.appointments.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Gift Voucher'), summary.appointmentsGiftVoucher.ht.toFixed(2) + ' €', summary.appointmentsGiftVoucher.tva.toFixed(2) + ' €', summary.appointmentsGiftVoucher.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Other Methods'), summary.appointmentsOther.ht.toFixed(2) + ' €', summary.appointmentsOther.tva.toFixed(2) + ' €', summary.appointmentsOther.ttc.toFixed(2) + ' €']);
                     } else {
-                        // Afficher une seule ligne "Appointments"
-                        vatSummaryData.push([
-                            translate('Appointments'),
-                            summary.appointments.ht.toFixed(2) + ' €',
-                            summary.appointments.tva.toFixed(2) + ' €',
-                            summary.appointments.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([translate('Appointments'), summary.appointments.ht.toFixed(2) + ' €', summary.appointments.tva.toFixed(2) + ' €', summary.appointments.ttc.toFixed(2) + ' €']);
                     }
                 }
                 
                 if (summary.packages.ttc > 0) {
                     if (summary.packagesGiftVoucher.ttc > 0) {
-                        // Afficher le détail avec sous-catégories
-                        vatSummaryData.push([
-                            translate('Packages') + ' (Total)',
-                            summary.packages.ht.toFixed(2) + ' €',
-                            summary.packages.tva.toFixed(2) + ' €',
-                            summary.packages.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Gift Voucher'),
-                            summary.packagesGiftVoucher.ht.toFixed(2) + ' €',
-                            summary.packagesGiftVoucher.tva.toFixed(2) + ' €',
-                            summary.packagesGiftVoucher.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Other Methods'),
-                            summary.packagesOther.ht.toFixed(2) + ' €',
-                            summary.packagesOther.tva.toFixed(2) + ' €',
-                            summary.packagesOther.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([translate('Packages') + ' (Total)', summary.packages.ht.toFixed(2) + ' €', summary.packages.tva.toFixed(2) + ' €', summary.packages.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Gift Voucher'), summary.packagesGiftVoucher.ht.toFixed(2) + ' €', summary.packagesGiftVoucher.tva.toFixed(2) + ' €', summary.packagesGiftVoucher.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Other Methods'), summary.packagesOther.ht.toFixed(2) + ' €', summary.packagesOther.tva.toFixed(2) + ' €', summary.packagesOther.ttc.toFixed(2) + ' €']);
                     } else {
-                        // Afficher une seule ligne "Packages"
-                        vatSummaryData.push([
-                            translate('Packages'),
-                            summary.packages.ht.toFixed(2) + ' €',
-                            summary.packages.tva.toFixed(2) + ' €',
-                            summary.packages.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([translate('Packages'), summary.packages.ht.toFixed(2) + ' €', summary.packages.tva.toFixed(2) + ' €', summary.packages.ttc.toFixed(2) + ' €']);
                     }
                 }
                 
                 if (summary.products.ttc > 0) {
                     if (summary.productsGiftVoucher.ttc > 0) {
-                        // Afficher le détail avec sous-catégories
-                        vatSummaryData.push([
-                            translate('Products') + ' (Total)',
-                            summary.products.ht.toFixed(2) + ' €',
-                            summary.products.tva.toFixed(2) + ' €',
-                            summary.products.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Gift Voucher'),
-                            summary.productsGiftVoucher.ht.toFixed(2) + ' €',
-                            summary.productsGiftVoucher.tva.toFixed(2) + ' €',
-                            summary.productsGiftVoucher.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Other Methods'),
-                            summary.productsOther.ht.toFixed(2) + ' €',
-                            summary.productsOther.tva.toFixed(2) + ' €',
-                            summary.productsOther.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([translate('Products') + ' (Total)', summary.products.ht.toFixed(2) + ' €', summary.products.tva.toFixed(2) + ' €', summary.products.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Gift Voucher'), summary.productsGiftVoucher.ht.toFixed(2) + ' €', summary.productsGiftVoucher.tva.toFixed(2) + ' €', summary.productsGiftVoucher.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Other Methods'), summary.productsOther.ht.toFixed(2) + ' €', summary.productsOther.tva.toFixed(2) + ' €', summary.productsOther.ttc.toFixed(2) + ' €']);
                     } else {
-                        // Afficher une seule ligne "Products"
-                        vatSummaryData.push([
-                            translate('Products'),
-                            summary.products.ht.toFixed(2) + ' €',
-                            summary.products.tva.toFixed(2) + ' €',
-                            summary.products.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([translate('Products'), summary.products.ht.toFixed(2) + ' €', summary.products.tva.toFixed(2) + ' €', summary.products.ttc.toFixed(2) + ' €']);
                     }
                 }
                 
                 if (enableSpecificProductRate && summary.specificProducts.ttc > 0) {
                     if (summary.specificProductsGiftVoucher.ttc > 0) {
-                        // Afficher le détail avec sous-catégories
-                        vatSummaryData.push([
-                            specificProductCategoryName + ' (Total)',
-                            summary.specificProducts.ht.toFixed(2) + ' €',
-                            summary.specificProducts.tva.toFixed(2) + ' €',
-                            summary.specificProducts.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Gift Voucher'),
-                            summary.specificProductsGiftVoucher.ht.toFixed(2) + ' €',
-                            summary.specificProductsGiftVoucher.tva.toFixed(2) + ' €',
-                            summary.specificProductsGiftVoucher.ttc.toFixed(2) + ' €'
-                        ]);
-                        vatSummaryData.push([
-                            '  ' + translate('Paid by Other Methods'),
-                            summary.specificProductsOther.ht.toFixed(2) + ' €',
-                            summary.specificProductsOther.tva.toFixed(2) + ' €',
-                            summary.specificProductsOther.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([specificProductCategoryName + ' (Total)', summary.specificProducts.ht.toFixed(2) + ' €', summary.specificProducts.tva.toFixed(2) + ' €', summary.specificProducts.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Gift Voucher'), summary.specificProductsGiftVoucher.ht.toFixed(2) + ' €', summary.specificProductsGiftVoucher.tva.toFixed(2) + ' €', summary.specificProductsGiftVoucher.ttc.toFixed(2) + ' €']);
+                        vatSummaryData.push(['  ' + translate('Paid by Other Methods'), summary.specificProductsOther.ht.toFixed(2) + ' €', summary.specificProductsOther.tva.toFixed(2) + ' €', summary.specificProductsOther.ttc.toFixed(2) + ' €']);
                     } else {
-                        // Afficher une seule ligne
-                        vatSummaryData.push([
-                            specificProductCategoryName,
-                            summary.specificProducts.ht.toFixed(2) + ' €',
-                            summary.specificProducts.tva.toFixed(2) + ' €',
-                            summary.specificProducts.ttc.toFixed(2) + ' €'
-                        ]);
+                        vatSummaryData.push([specificProductCategoryName, summary.specificProducts.ht.toFixed(2) + ' €', summary.specificProducts.tva.toFixed(2) + ' €', summary.specificProducts.ttc.toFixed(2) + ' €']);
                     }
                 }
                 
                 if (summary.giftVouchers.ttc > 0) {
+                    vatSummaryData.push([translate('Gift Vouchers'), summary.giftVouchers.ht.toFixed(2) + ' €', summary.giftVouchers.tva.toFixed(2) + ' €', summary.giftVouchers.ttc.toFixed(2) + ' €']);
+                }
+
+                // Tips - separate section with accountant note
+                if (summary.tips.ttc > 0) {
+                    vatSummaryData.push([]);
                     vatSummaryData.push([
-                        translate('Gift Vouchers'),
-                        summary.giftVouchers.ht.toFixed(2) + ' €',
-                        summary.giftVouchers.tva.toFixed(2) + ' €',
-                        summary.giftVouchers.ttc.toFixed(2) + ' €'
+                        exportLanguage === 'fr'
+                            ? '💰 Pourboires (hors TVA déclarable - à vérifier avec votre comptable)'
+                            : '💰 Tips (excl. declarable VAT - verify with your accountant)',
+                        summary.tips.ttc.toFixed(2) + ' €',
+                        '0.00 €',
+                        summary.tips.ttc.toFixed(2) + ' €'
                     ]);
                 }
                 
                 const wsVatSummary = XLSX.utils.aoa_to_sheet(vatSummaryData);
-                wsVatSummary['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+                wsVatSummary['!cols'] = [{ wch: 55 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
                 XLSX.utils.book_append_sheet(wb, wsVatSummary, exportLanguage === 'fr' ? 'CA Détaillé' : 'Detailed Revenue');
                 
                 // ========================================
@@ -789,16 +654,26 @@
                     if (paymentMethods.cheque > 0) paymentSummaryData.push([translate('Check'), paymentMethods.cheque.toFixed(2) + ' €']);
                     if (paymentMethods.gift_voucher > 0) paymentSummaryData.push([translate('Gift Voucher Used'), paymentMethods.gift_voucher.toFixed(2) + ' €']);
                     if (paymentMethods.other > 0) paymentSummaryData.push([translate('Other'), paymentMethods.other.toFixed(2) + ' €']);
+
+                    // Tips dedicated line
+                    if (paymentMethods.tips > 0) {
+                        paymentSummaryData.push([]);
+                        paymentSummaryData.push([
+                            exportLanguage === 'fr'
+                                ? '💰 Pourboires (à vérifier avec votre comptable)'
+                                : '💰 Tips (verify with your accountant)',
+                            paymentMethods.tips.toFixed(2) + ' €'
+                        ]);
+                    }
                     
                     const wsPaymentSummary = XLSX.utils.aoa_to_sheet(paymentSummaryData);
-                    wsPaymentSummary['!cols'] = [{ wch: 30 }, { wch: 15 }];
+                    wsPaymentSummary['!cols'] = [{ wch: 45 }, { wch: 15 }];
                     XLSX.utils.book_append_sheet(wb, wsPaymentSummary, exportLanguage === 'fr' ? 'Récap Paiements' : 'Payment Summary');
                     
                     // ========================================
                     // ONGLETS 4+: Détail par moyen de paiement
                     // ========================================
                     const createPaymentSheet = (transactionTypes, sheetName) => {
-                        // Identifier les paiements remboursés (pour affichage uniquement)
                         const refundedPayments = new Set();
                         data.forEach(row => {
                             const transaction = (row.transaction || '').toLowerCase().trim();
@@ -807,14 +682,9 @@
                             }
                         });
                         
-                        // Trouver tous les payment IDs qui ont ce type de paiement (INCLURE les remboursés pour Excel)
                         const matchingPaymentIds = new Set();
-                        
                         data.forEach(row => {
                             const transaction = (row.transaction || '').toLowerCase().trim();
-                            const grossValue = parseFloat(row.gross_value) || 0;
-                            
-                            // Si c'est un paiement qui correspond au type recherché (même si remboursé)
                             if (transactionTypes.some(t => transaction.includes(t.toLowerCase().trim()))) {
                                 matchingPaymentIds.add(String(row.payment));
                             }
@@ -822,37 +692,27 @@
                         
                         if (matchingPaymentIds.size === 0) return;
                         
-                        // Créer les headers
                         const headers = exportLanguage === 'fr'
                             ? ['ID Paiement', 'Date', 'Transaction', 'Type', 'Montant', 'Boutique', 'Employé', 'Client', 'Notes', 'Compte Bancaire', 'Arrivée Paiement En Ligne', 'Frais Paiement En Ligne', 'URL']
                             : ['Payment ID', 'Date', 'Transaction', 'Type', 'Amount', 'Shop', 'Employee', 'Customer', 'Notes', 'Bank Account', 'Online Payment Arrival', 'Online Payment Fee', 'URL'];
                         
                         const sheetData = [headers];
                         
-                        // Filtrer et afficher les lignes correspondantes
                         data.forEach(row => {
                             if (matchingPaymentIds.has(String(row.payment))) {
                                 const transaction = (row.transaction || '').toLowerCase().trim();
                                 const grossValue = parseFloat(row.gross_value) || 0;
-                                const isRefunded = refundedPayments.has(String(row.payment));
                                 
-                                // Garder si :
-                                // 1. C'est un appointment (service)
-                                // 2. C'est un product_sale (produit)
-                                // 3. C'est un package_sale (forfait)
-                                // 4. C'est un gift_voucher_sale (bon cadeau)
-                                // 5. C'est le type de paiement recherché (contient le type)
-                                // 6. C'est une ligne "refund"
-                                // 7. C'est la ligne URL
                                 const isAppointment = transaction === 'appointment';
                                 const isProductSale = transaction === 'product_sale';
                                 const isPackageSale = transaction === 'package_sale';
                                 const isGiftVoucherSale = transaction === 'gift_voucher_sale';
+                                const isTip = transaction === 'tip';
                                 const isMatchingPayment = transactionTypes.some(t => transaction.includes(t.toLowerCase().trim()));
                                 const isRefundLine = transaction.includes('refund') || transaction.includes('remboursement');
                                 const isUrlLine = !transaction && !grossValue && row.url;
                                 
-                                if (isAppointment || isProductSale || isPackageSale || isGiftVoucherSale || isMatchingPayment || isRefundLine || isUrlLine) {
+                                if (isAppointment || isProductSale || isPackageSale || isGiftVoucherSale || isTip || isMatchingPayment || isRefundLine || isUrlLine) {
                                     sheetData.push([
                                         row.payment || '-',
                                         row['Heure et jour'] || row['datetime'] || '-',
@@ -873,25 +733,10 @@
                         });
                         
                         const ws = XLSX.utils.aoa_to_sheet(sheetData);
-                        ws['!cols'] = [
-                            { wch: 12 },  // ID Paiement
-                            { wch: 18 },  // Date
-                            { wch: 20 },  // Transaction
-                            { wch: 35 },  // Type
-                            { wch: 12 },  // Montant
-                            { wch: 15 },  // Boutique
-                            { wch: 20 },  // Employé
-                            { wch: 25 },  // Client
-                            { wch: 30 },  // Notes
-                            { wch: 15 },  // Compte Bancaire
-                            { wch: 18 },  // Arrivée Paiement En Ligne
-                            { wch: 18 },  // Frais Paiement En Ligne
-                            { wch: 60 }   // URL
-                        ];
+                        ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 35 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 60 }];
                         XLSX.utils.book_append_sheet(wb, ws, sheetName);
                     };
                     
-                    // Créer les onglets même si montant = 0 (pour voir les remboursements)
                     const hasTransaction = (transactionTypes) => {
                         return data.some(row => {
                             const transaction = (row.transaction || '').toLowerCase().trim();
@@ -899,28 +744,17 @@
                         });
                     };
                     
-                    if (hasTransaction(['cash', 'en espèces', 'espèces'])) {
-                        createPaymentSheet(['cash', 'en espèces', 'espèces'], exportLanguage === 'fr' ? 'Espèces' : 'Cash');
-                    }
-                    if (hasTransaction(['instore card', 'par carte au salon'])) {
-                        createPaymentSheet(['instore card', 'par carte au salon'], exportLanguage === 'fr' ? 'Carte Salon' : 'Card In-Store');
-                    }
-                    if (hasTransaction(['online_card', 'paiement par carte en ligne'])) {
-                        createPaymentSheet(['online_card', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
-                    }
-                    if (hasTransaction(['bank transfer', 'virement bancaire'])) {
-                        createPaymentSheet(['bank transfer', 'virement bancaire'], exportLanguage === 'fr' ? 'Virement' : 'Bank Transfer');
-                    }
-                    if (hasTransaction(['cheque', 'chèque'])) {
-                        createPaymentSheet(['cheque', 'chèque'], exportLanguage === 'fr' ? 'Chèque' : 'Check');
-                    }
-                    if (hasTransaction(['gift_voucher_applied', 'gift_vouhcher_applied'])) {
-                        createPaymentSheet(['gift_voucher_applied', 'gift_vouhcher_applied'], exportLanguage === 'fr' ? 'Bon Cadeau' : 'Gift Voucher');
-                    }
-                    if (hasTransaction(['other', 'autre'])) {
-                        createPaymentSheet(['other', 'autre'], exportLanguage === 'fr' ? 'Autre' : 'Other');
-                    }
+                    if (hasTransaction(['cash', 'en espèces', 'espèces'])) createPaymentSheet(['cash', 'en espèces', 'espèces'], exportLanguage === 'fr' ? 'Espèces' : 'Cash');
+                    if (hasTransaction(['instore card', 'par carte au salon'])) createPaymentSheet(['instore card', 'par carte au salon'], exportLanguage === 'fr' ? 'Carte Salon' : 'Card In-Store');
+                    if (hasTransaction(['online_card', 'paiement par carte en ligne'])) createPaymentSheet(['online_card', 'paiement par carte en ligne'], exportLanguage === 'fr' ? 'Carte En Ligne' : 'Card Online');
+                    if (hasTransaction(['bank transfer', 'virement bancaire'])) createPaymentSheet(['bank transfer', 'virement bancaire'], exportLanguage === 'fr' ? 'Virement' : 'Bank Transfer');
+                    if (hasTransaction(['cheque', 'chèque'])) createPaymentSheet(['cheque', 'chèque'], exportLanguage === 'fr' ? 'Chèque' : 'Check');
+                    if (hasTransaction(['gift_voucher_applied', 'gift_vouhcher_applied'])) createPaymentSheet(['gift_voucher_applied', 'gift_vouhcher_applied'], exportLanguage === 'fr' ? 'Bon Cadeau' : 'Gift Voucher');
+                    if (hasTransaction(['other', 'autre'])) createPaymentSheet(['other', 'autre'], exportLanguage === 'fr' ? 'Autre' : 'Other');
+                    // Tips dedicated sheet
+                    if (hasTransaction(['tip'])) createPaymentSheet(['tip'], exportLanguage === 'fr' ? 'Pourboires' : 'Tips');
                 }
+
                 // ========================================
                 // ONGLET: Anomalies
                 // ========================================
@@ -931,44 +765,14 @@
                         : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Services (Cancelled)', 'Service Total', 'Amount Collected', 'VAT Calculated', 'VAT Rate', 'Recommended Action', 'URL'];
                     
                     const anomaliesExcelData = [anomaliesHeaders];
-                    
                     anomaliesData.forEach(anomaly => {
                         const servicesDescription = anomaly.items.map(item => item.type).join(', ');
-                        const action = exportLanguage === 'fr' 
-                            ? 'Vérifier : Frais d\'annulation ou Remboursement'
-                            : 'Check: Cancellation fees or Refund';
-                        
-                        anomaliesExcelData.push([
-                            anomaly.paymentId,
-                            anomaly.date,
-                            anomaly.customer,
-                            anomaly.shop,
-                            anomaly.employee,
-                            servicesDescription,
-                            anomaly.totalServices.toFixed(2) + ' €',
-                            anomaly.totalPaid.toFixed(2) + ' €',
-                            anomaly.vatAmount.toFixed(2) + ' €',
-                            anomaly.vatRate + '%',
-                            action,
-                            anomaly.url
-                        ]);
+                        const action = exportLanguage === 'fr' ? 'Vérifier : Frais d\'annulation ou Remboursement' : 'Check: Cancellation fees or Refund';
+                        anomaliesExcelData.push([anomaly.paymentId, anomaly.date, anomaly.customer, anomaly.shop, anomaly.employee, servicesDescription, anomaly.totalServices.toFixed(2) + ' €', anomaly.totalPaid.toFixed(2) + ' €', anomaly.vatAmount.toFixed(2) + ' €', anomaly.vatRate + '%', action, anomaly.url]);
                     });
                     
                     const wsAnomalies = XLSX.utils.aoa_to_sheet(anomaliesExcelData);
-                    wsAnomalies['!cols'] = [
-                        { wch: 12 },  // ID
-                        { wch: 18 },  // Date
-                        { wch: 25 },  // Client
-                        { wch: 20 },  // Boutique
-                        { wch: 20 },  // Employé
-                        { wch: 40 },  // Services
-                        { wch: 12 },  // Service Total
-                        { wch: 15 },  // Encaissé
-                        { wch: 15 },  // TVA
-                        { wch: 10 },  // Taux
-                        { wch: 45 },  // Action
-                        { wch: 60 }   // URL
-                    ];
+                    wsAnomalies['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 40 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 45 }, { wch: 60 }];
                     XLSX.utils.book_append_sheet(wb, wsAnomalies, exportLanguage === 'fr' ? 'Anomalies' : 'Anomalies');
                 }
 
@@ -982,50 +786,19 @@
                         : ['Payment ID', 'Date', 'Customer', 'Shop', 'Employee', 'Services/Products', 'Notes', 'Total Due', 'Paid', 'Amount Pending', 'URL'];
                     
                     const pendingData = [pendingHeaders];
-
                     pendingPaymentsData.forEach(payment => {
                         const servicesDescription = payment.serviceItems.map(item => item.type).join(', ');
                         const productsDescription = payment.productItems.map(item => item.type).join(', ');
-                        const itemsDescription = [
-                            servicesDescription && `📅 ${servicesDescription}`,
-                            productsDescription && `🛍️ ${productsDescription}`
-                        ].filter(Boolean).join(' | ');
+                        const itemsDescription = [servicesDescription && `📅 ${servicesDescription}`, productsDescription && `🛍️ ${productsDescription}`].filter(Boolean).join(' | ');
                         const notes = payment.items[0]?.additional_info || '';
-                        pendingData.push([
-                            payment.paymentId,
-                            payment.date,
-                            payment.customer,
-                            payment.shop,
-                            payment.employee,
-                            itemsDescription,
-                            notes,
-                            payment.totalDue.toFixed(2) + ' €',
-                            payment.totalPaid.toFixed(2) + ' €',
-                            payment.amountPending.toFixed(2) + ' €',
-                            payment.url
-                        ]);
+                        pendingData.push([payment.paymentId, payment.date, payment.customer, payment.shop, payment.employee, itemsDescription, notes, payment.totalDue.toFixed(2) + ' €', payment.totalPaid.toFixed(2) + ' €', payment.amountPending.toFixed(2) + ' €', payment.url]);
                     });
                     
                     const wsPending = XLSX.utils.aoa_to_sheet(pendingData);
-                    wsPending['!cols'] = [
-                        { wch: 12 },  // ID
-                        { wch: 18 },  // Date
-                        { wch: 25 },  // Client
-                        { wch: 20 },  // Boutique
-                        { wch: 20 },  // Employé
-                        { wch: 50 },  // Services/Produits
-                        { wch: 30 },  // Notes
-                        { wch: 12 },  // Total Dû
-                        { wch: 12 },  // Payé
-                        { wch: 15 },  // Reste à Payer
-                        { wch: 60 }   // URL
-                    ];
+                    wsPending['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 50 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 60 }];
                     XLSX.utils.book_append_sheet(wb, wsPending, exportLanguage === 'fr' ? 'En Attente' : 'Pending');
                 }
         
-                // ========================================
-                // TÉLÉCHARGEMENT
-                // ========================================
                 const suffix = exportLanguage === 'fr' ? '_Rapport_Complet' : '_Complete_Report';
                 XLSX.writeFile(wb, fileName.replace('.csv', '') + suffix + '.xlsx');
             };
@@ -1048,501 +821,203 @@
             };
 
             const calculateSummary = () => {
-            const summary = {
-                total: { ht: 0, tva: 0, ttc: 0 },
-                appointments: { ht: 0, tva: 0, ttc: 0 },
-                appointmentsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
-                appointmentsOther: { ht: 0, tva: 0, ttc: 0 },
-                packages: { ht: 0, tva: 0, ttc: 0 },
-                packagesGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
-                packagesOther: { ht: 0, tva: 0, ttc: 0 },
-                products: { ht: 0, tva: 0, ttc: 0 },
-                productsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
-                productsOther: { ht: 0, tva: 0, ttc: 0 },
-                specificProducts: { ht: 0, tva: 0, ttc: 0 },
-                specificProductsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
-                specificProductsOther: { ht: 0, tva: 0, ttc: 0 },
-                giftVouchers: { ht: 0, tva: 0, ttc: 0 }
-            };
+                const summary = {
+                    total: { ht: 0, tva: 0, ttc: 0 },
+                    appointments: { ht: 0, tva: 0, ttc: 0 },
+                    appointmentsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    appointmentsOther: { ht: 0, tva: 0, ttc: 0 },
+                    packages: { ht: 0, tva: 0, ttc: 0 },
+                    packagesGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    packagesOther: { ht: 0, tva: 0, ttc: 0 },
+                    products: { ht: 0, tva: 0, ttc: 0 },
+                    productsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    productsOther: { ht: 0, tva: 0, ttc: 0 },
+                    specificProducts: { ht: 0, tva: 0, ttc: 0 },
+                    specificProductsGiftVoucher: { ht: 0, tva: 0, ttc: 0 },
+                    specificProductsOther: { ht: 0, tva: 0, ttc: 0 },
+                    giftVouchers: { ht: 0, tva: 0, ttc: 0 },
+                    // Tips: separate from declarable VAT total
+                    tips: { ht: 0, tva: 0, ttc: 0 }
+                };
+            
+                data.forEach(row => {
+                    if (row.vat_category) {
+                        const ttc = parseFloat(row.gross_value) || 0;
+                        const tva = parseFloat(row.vat_amount) || 0;
+                        const ht = ttc - tva;
+
+                        // Tips are tracked separately and NOT included in the declarable VAT total
+                        if (row.vat_category === 'Tip') {
+                            summary.tips.ttc += ttc;
+                            summary.tips.tva += 0;
+                            summary.tips.ht += ttc;
+                            return; // do not add to summary.total
+                        }
         
-            data.forEach(row => {
-                // Traiter toutes les lignes qui ont une catégorie VAT
-                if (row.vat_category) {
-                    const ttc = parseFloat(row.gross_value) || 0;
-                    const tva = parseFloat(row.vat_amount) || 0;
-                    const ht = ttc - tva;
-        
-                    // Ajouter au total SEULEMENT si la TVA est réellement calculée
                         summary.total.ttc += ttc;
                         summary.total.tva += tva;
                         summary.total.ht += ht;
         
-                    if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)' || row.vat_category === 'Appointment (Paid by Gift Voucher)') {
-                        summary.appointments.ttc += ttc;
-                        summary.appointments.tva += tva;
-                        summary.appointments.ht += ht;
-                        
-                        // Calculer la part payée par bon cadeau vs autre
-                        if (row.vat_category === 'Appointment (Paid by Gift Voucher)') {
-                            // 100% payé par bon cadeau
-                            summary.appointmentsGiftVoucher.ttc += ttc;
+                        if (row.vat_category === 'Appointment' || row.vat_category === 'Appointment (Partial Gift Voucher)' || row.vat_category === 'Appointment (Paid by Gift Voucher)') {
+                            summary.appointments.ttc += ttc;
+                            summary.appointments.tva += tva;
+                            summary.appointments.ht += ht;
                             
-                            // Si vat_amount existe = TVA BC à 0% donc TVA déclarée au rdv
-                            // Si vat_amount vide = TVA BC > 0% donc TVA déjà déclarée à l'achat
-                            if (row.vat_amount && row.vat_rate !== '') {
-                                summary.appointmentsGiftVoucher.tva += tva;
-                                summary.appointmentsGiftVoucher.ht += ht;
+                            if (row.vat_category === 'Appointment (Paid by Gift Voucher)') {
+                                summary.appointmentsGiftVoucher.ttc += ttc;
+                                if (row.vat_amount && row.vat_rate !== '') {
+                                    summary.appointmentsGiftVoucher.tva += tva;
+                                    summary.appointmentsGiftVoucher.ht += ht;
+                                } else {
+                                    summary.appointmentsGiftVoucher.tva += 0;
+                                    summary.appointmentsGiftVoucher.ht += ttc;
+                                }
+                            } else if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
+                                let giftVoucherPart = 0;
+                                let amountToTax = 0;
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    amountToTax = parseFloat(match[1]);
+                                    giftVoucherPart = ttc - amountToTax;
+                                    summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
+                                    summary.appointmentsGiftVoucher.tva += 0;
+                                    summary.appointmentsGiftVoucher.ht += giftVoucherPart;
+                                    summary.appointmentsOther.ttc += amountToTax;
+                                    summary.appointmentsOther.tva += tva;
+                                    summary.appointmentsOther.ht += amountToTax - tva;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    giftVoucherPart = row._giftVoucherPart;
+                                    amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                    const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
+                                    const otherTVA = tva - giftVoucherTVA;
+                                    summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
+                                    summary.appointmentsGiftVoucher.tva += giftVoucherTVA;
+                                    summary.appointmentsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
+                                    summary.appointmentsOther.ttc += amountToTax;
+                                    summary.appointmentsOther.tva += otherTVA;
+                                    summary.appointmentsOther.ht += amountToTax - otherTVA;
+                                }
                             } else {
-                                summary.appointmentsGiftVoucher.tva += 0;
-                                summary.appointmentsGiftVoucher.ht += ttc;
-                            }
-                        } else if (row.vat_category === 'Appointment (Partial Gift Voucher)') {
-                            let giftVoucherPart = 0;
-                            let amountToTax = 0;
-                            
-                            // Extraire depuis [taxé:XX.XX€] si présent
-                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                            if (match) {
-                                // Si [taxé:XX.XX€] existe = TVA BC > 0%
-                                // La TVA n'est calculée QUE sur amountToTax
-                                amountToTax = parseFloat(match[1]);
-                                giftVoucherPart = ttc - amountToTax;
-                                
-                                // Part bon cadeau (TVA = 0, déjà payée à l'achat)
-                                summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
-                                summary.appointmentsGiftVoucher.tva += 0;
-                                summary.appointmentsGiftVoucher.ht += giftVoucherPart;
-                                
-                                // Part autre paiement (avec TOUTE la TVA)
-                                summary.appointmentsOther.ttc += amountToTax;
+                                summary.appointmentsOther.ttc += ttc;
                                 summary.appointmentsOther.tva += tva;
-                                summary.appointmentsOther.ht += amountToTax - tva;
-                            } else if (row._giftVoucherPart !== undefined) {
-                                // Si pas de [taxé:] mais _giftVoucherPart existe = TVA BC = 0%
-                                // La TVA est calculée sur TOUT, on répartit proportionnellement
-                                giftVoucherPart = row._giftVoucherPart;
-                                amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                                
-                                const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
-                                const otherTVA = tva - giftVoucherTVA;
-                                
-                                // Part bon cadeau
-                                summary.appointmentsGiftVoucher.ttc += giftVoucherPart;
-                                summary.appointmentsGiftVoucher.tva += giftVoucherTVA;
-                                summary.appointmentsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
-                                
-                                // Part autre paiement
-                                summary.appointmentsOther.ttc += amountToTax;
-                                summary.appointmentsOther.tva += otherTVA;
-                                summary.appointmentsOther.ht += amountToTax - otherTVA;
+                                summary.appointmentsOther.ht += ht;
                             }
-                        } else {
-                            // Appointment normal (pas de bon cadeau)
-                            summary.appointmentsOther.ttc += ttc;
-                            summary.appointmentsOther.tva += tva;
-                            summary.appointmentsOther.ht += ht;
+                        } else if (row.vat_category === 'Package' || row.vat_category === 'Package (Partial Gift Voucher)' || row.vat_category === 'Package (Paid by Gift Voucher)') {
+                            summary.packages.ttc += ttc;
+                            summary.packages.tva += tva;
+                            summary.packages.ht += ht;
+                            if (row.vat_category === 'Package (Paid by Gift Voucher)') {
+                                summary.packagesGiftVoucher.ttc += ttc;
+                                if (row.vat_amount && row.vat_rate !== '') { summary.packagesGiftVoucher.tva += tva; summary.packagesGiftVoucher.ht += ht; }
+                                else { summary.packagesGiftVoucher.tva += 0; summary.packagesGiftVoucher.ht += ttc; }
+                            } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    summary.packagesGiftVoucher.ttc += giftVoucherPart; summary.packagesGiftVoucher.tva += 0; summary.packagesGiftVoucher.ht += giftVoucherPart;
+                                    summary.packagesOther.ttc += amountToTax; summary.packagesOther.tva += tva; summary.packagesOther.ht += amountToTax - tva;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    const giftVoucherPart = row._giftVoucherPart;
+                                    const amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                    const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
+                                    const otherTVA = tva - giftVoucherTVA;
+                                    summary.packagesGiftVoucher.ttc += giftVoucherPart; summary.packagesGiftVoucher.tva += giftVoucherTVA; summary.packagesGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
+                                    summary.packagesOther.ttc += amountToTax; summary.packagesOther.tva += otherTVA; summary.packagesOther.ht += amountToTax - otherTVA;
+                                }
+                            } else { summary.packagesOther.ttc += ttc; summary.packagesOther.tva += tva; summary.packagesOther.ht += ht; }
+                        } else if (row.vat_category === 'Product' || row.vat_category === 'Product (Partial Gift Voucher)' || row.vat_category === 'Product (Paid by Gift Voucher)') {
+                            summary.products.ttc += ttc; summary.products.tva += tva; summary.products.ht += ht;
+                            if (row.vat_category === 'Product (Paid by Gift Voucher)') {
+                                summary.productsGiftVoucher.ttc += ttc;
+                                if (row.vat_amount && row.vat_rate !== '') { summary.productsGiftVoucher.tva += tva; summary.productsGiftVoucher.ht += ht; }
+                                else { summary.productsGiftVoucher.tva += 0; summary.productsGiftVoucher.ht += ttc; }
+                            } else if (row.vat_category === 'Product (Partial Gift Voucher)') {
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    summary.productsGiftVoucher.ttc += giftVoucherPart; summary.productsGiftVoucher.tva += 0; summary.productsGiftVoucher.ht += giftVoucherPart;
+                                    summary.productsOther.ttc += amountToTax; summary.productsOther.tva += tva; summary.productsOther.ht += amountToTax - tva;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    const giftVoucherPart = row._giftVoucherPart;
+                                    const amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                    const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
+                                    const otherTVA = tva - giftVoucherTVA;
+                                    summary.productsGiftVoucher.ttc += giftVoucherPart; summary.productsGiftVoucher.tva += giftVoucherTVA; summary.productsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
+                                    summary.productsOther.ttc += amountToTax; summary.productsOther.tva += otherTVA; summary.productsOther.ht += amountToTax - otherTVA;
+                                }
+                            } else { summary.productsOther.ttc += ttc; summary.productsOther.tva += tva; summary.productsOther.ht += ht; }
+                        } else if (row.vat_category === specificProductCategoryName || row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)' || row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
+                            summary.specificProducts.ttc += ttc; summary.specificProducts.tva += tva; summary.specificProducts.ht += ht;
+                            if (row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
+                                summary.specificProductsGiftVoucher.ttc += ttc;
+                                if (row.vat_amount && row.vat_rate !== '') { summary.specificProductsGiftVoucher.tva += tva; summary.specificProductsGiftVoucher.ht += ht; }
+                                else { summary.specificProductsGiftVoucher.tva += 0; summary.specificProductsGiftVoucher.ht += ttc; }
+                            } else if (row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)') {
+                                const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
+                                if (match) {
+                                    const amountToTax = parseFloat(match[1]);
+                                    const giftVoucherPart = ttc - amountToTax;
+                                    summary.specificProductsGiftVoucher.ttc += giftVoucherPart; summary.specificProductsGiftVoucher.tva += 0; summary.specificProductsGiftVoucher.ht += giftVoucherPart;
+                                    summary.specificProductsOther.ttc += amountToTax; summary.specificProductsOther.tva += tva; summary.specificProductsOther.ht += amountToTax - tva;
+                                } else if (row._giftVoucherPart !== undefined) {
+                                    const giftVoucherPart = row._giftVoucherPart;
+                                    const amountToTax = row._amountToTax || (ttc - giftVoucherPart);
+                                    const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
+                                    const otherTVA = tva - giftVoucherTVA;
+                                    summary.specificProductsGiftVoucher.ttc += giftVoucherPart; summary.specificProductsGiftVoucher.tva += giftVoucherTVA; summary.specificProductsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
+                                    summary.specificProductsOther.ttc += amountToTax; summary.specificProductsOther.tva += otherTVA; summary.specificProductsOther.ht += amountToTax - otherTVA;
+                                }
+                            } else { summary.specificProductsOther.ttc += ttc; summary.specificProductsOther.tva += tva; summary.specificProductsOther.ht += ht; }
+                        } else if (row.vat_category === 'Gift Voucher') {
+                            summary.giftVouchers.ttc += ttc; summary.giftVouchers.tva += tva; summary.giftVouchers.ht += ht;
                         }
-                    } else if (row.vat_category === 'Package' || row.vat_category === 'Package (Partial Gift Voucher)' || row.vat_category === 'Package (Paid by Gift Voucher)') {
-                        summary.packages.ttc += ttc;
-                        summary.packages.tva += tva;
-                        summary.packages.ht += ht;
-                        
-                        if (row.vat_category === 'Package (Paid by Gift Voucher)') {
-                            summary.packagesGiftVoucher.ttc += ttc;
-                            
-                            // Si vat_amount existe = TVA BC à 0% donc TVA déclarée au moment de l'utilisation
-                            // Si vat_amount vide = TVA BC > 0% donc TVA déjà déclarée à l'achat
-                            if (row.vat_amount && row.vat_rate !== '') {
-                                summary.packagesGiftVoucher.tva += tva;
-                                summary.packagesGiftVoucher.ht += ht;
-                            } else {
-                                summary.packagesGiftVoucher.tva += 0;
-                                summary.packagesGiftVoucher.ht += ttc;
-                            }
-                        } else if (row.vat_category === 'Package (Partial Gift Voucher)') {
-                            let giftVoucherPart = 0;
-                            let amountToTax = 0;
-                            
-                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                            if (match) {
-                                // TVA BC > 0% : TVA uniquement sur amountToTax
-                                amountToTax = parseFloat(match[1]);
-                                giftVoucherPart = ttc - amountToTax;
-                                
-                                summary.packagesGiftVoucher.ttc += giftVoucherPart;
-                                summary.packagesGiftVoucher.tva += 0;
-                                summary.packagesGiftVoucher.ht += giftVoucherPart;
-                                
-                                summary.packagesOther.ttc += amountToTax;
-                                summary.packagesOther.tva += tva;
-                                summary.packagesOther.ht += amountToTax - tva;
-                            } else if (row._giftVoucherPart !== undefined) {
-                                // TVA BC = 0% : répartition proportionnelle
-                                giftVoucherPart = row._giftVoucherPart;
-                                amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                                
-                                const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
-                                const otherTVA = tva - giftVoucherTVA;
-                                
-                                summary.packagesGiftVoucher.ttc += giftVoucherPart;
-                                summary.packagesGiftVoucher.tva += giftVoucherTVA;
-                                summary.packagesGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
-                                
-                                summary.packagesOther.ttc += amountToTax;
-                                summary.packagesOther.tva += otherTVA;
-                                summary.packagesOther.ht += amountToTax - otherTVA;
-                            }
-                        } else {
-                            summary.packagesOther.ttc += ttc;
-                            summary.packagesOther.tva += tva;
-                            summary.packagesOther.ht += ht;
-                        }
-                    } else if (row.vat_category === 'Product' || row.vat_category === 'Product (Partial Gift Voucher)' || row.vat_category === 'Product (Paid by Gift Voucher)') {
-                        summary.products.ttc += ttc;
-                        summary.products.tva += tva;
-                        summary.products.ht += ht;
-                        
-                        if (row.vat_category === 'Product (Paid by Gift Voucher)') {
-                            summary.productsGiftVoucher.ttc += ttc;
-                            
-                            // Si vat_amount existe = TVA BC à 0% donc TVA déclarée au moment de l'utilisation
-                            // Si vat_amount vide = TVA BC > 0% donc TVA déjà déclarée à l'achat
-                            if (row.vat_amount && row.vat_rate !== '') {
-                                summary.productsGiftVoucher.tva += tva;
-                                summary.productsGiftVoucher.ht += ht;
-                            } else {
-                                summary.productsGiftVoucher.tva += 0;
-                                summary.productsGiftVoucher.ht += ttc;
-                            }
-                        } else if (row.vat_category === 'Product (Partial Gift Voucher)') {
-                            let giftVoucherPart = 0;
-                            let amountToTax = 0;
-                            
-                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                            if (match) {
-                                // TVA BC > 0% : TVA uniquement sur amountToTax
-                                amountToTax = parseFloat(match[1]);
-                                giftVoucherPart = ttc - amountToTax;
-                                
-                                summary.productsGiftVoucher.ttc += giftVoucherPart;
-                                summary.productsGiftVoucher.tva += 0;
-                                summary.productsGiftVoucher.ht += giftVoucherPart;
-                                
-                                summary.productsOther.ttc += amountToTax;
-                                summary.productsOther.tva += tva;
-                                summary.productsOther.ht += amountToTax - tva;
-                            } else if (row._giftVoucherPart !== undefined) {
-                                // TVA BC = 0% : répartition proportionnelle
-                                giftVoucherPart = row._giftVoucherPart;
-                                amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                                
-                                const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
-                                const otherTVA = tva - giftVoucherTVA;
-                                
-                                summary.productsGiftVoucher.ttc += giftVoucherPart;
-                                summary.productsGiftVoucher.tva += giftVoucherTVA;
-                                summary.productsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
-                                
-                                summary.productsOther.ttc += amountToTax;
-                                summary.productsOther.tva += otherTVA;
-                                summary.productsOther.ht += amountToTax - otherTVA;
-                            }
-                        } else {
-                            summary.productsOther.ttc += ttc;
-                            summary.productsOther.tva += tva;
-                            summary.productsOther.ht += ht;
-                        }
-                    } else if (row.vat_category === specificProductCategoryName || row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)' || row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
-                        summary.specificProducts.ttc += ttc;
-                        summary.specificProducts.tva += tva;
-                        summary.specificProducts.ht += ht;
-                        
-                        if (row.vat_category === specificProductCategoryName + ' (Paid by Gift Voucher)') {
-                            summary.specificProductsGiftVoucher.ttc += ttc;
-                            
-                            if (row.vat_amount && row.vat_rate !== '') {
-                                summary.specificProductsGiftVoucher.tva += tva;
-                                summary.specificProductsGiftVoucher.ht += ht;
-                            } else {
-                                summary.specificProductsGiftVoucher.tva += 0;
-                                summary.specificProductsGiftVoucher.ht += ttc;
-                            }
-                        } else if (row.vat_category === specificProductCategoryName + ' (Partial Gift Voucher)') {
-                            let giftVoucherPart = 0;
-                            let amountToTax = 0;
-                            
-                            const match = row.type?.match(/\[taxé:([\d.]+)€\]/);
-                            if (match) {
-                                // TVA BC > 0% : TVA uniquement sur amountToTax
-                                amountToTax = parseFloat(match[1]);
-                                giftVoucherPart = ttc - amountToTax;
-                                
-                                summary.specificProductsGiftVoucher.ttc += giftVoucherPart;
-                                summary.specificProductsGiftVoucher.tva += 0;
-                                summary.specificProductsGiftVoucher.ht += giftVoucherPart;
-                                
-                                summary.specificProductsOther.ttc += amountToTax;
-                                summary.specificProductsOther.tva += tva;
-                                summary.specificProductsOther.ht += amountToTax - tva;
-                            } else if (row._giftVoucherPart !== undefined) {
-                                // TVA BC = 0% : répartition proportionnelle
-                                giftVoucherPart = row._giftVoucherPart;
-                                amountToTax = row._amountToTax || (ttc - giftVoucherPart);
-                                
-                                const giftVoucherTVA = (giftVoucherPart / ttc) * tva;
-                                const otherTVA = tva - giftVoucherTVA;
-                                
-                                summary.specificProductsGiftVoucher.ttc += giftVoucherPart;
-                                summary.specificProductsGiftVoucher.tva += giftVoucherTVA;
-                                summary.specificProductsGiftVoucher.ht += giftVoucherPart - giftVoucherTVA;
-                                
-                                summary.specificProductsOther.ttc += amountToTax;
-                                summary.specificProductsOther.tva += otherTVA;
-                                summary.specificProductsOther.ht += amountToTax - otherTVA;
-                            }
-                        } else {
-                            summary.specificProductsOther.ttc += ttc;
-                            summary.specificProductsOther.tva += tva;
-                            summary.specificProductsOther.ht += ht;
-                        }
-                    } else if (row.vat_category === 'Gift Voucher') {
-                        summary.giftVouchers.ttc += ttc;
-                        summary.giftVouchers.tva += tva;
-                        summary.giftVouchers.ht += ht;
                     }
-                }
-            });
-        
-            return summary;
-        };
+                });
+            
+                return summary;
+            };
             
             const translate = (key) => {
-                    if (exportLanguage === 'fr') {
-                        return {
-                            'Total Period': 'Total Période',
-                            'Total Period (Excl. Gift Voucher Payments)': 'Total Période (Hors Paiements par Bon Cadeau)',
-                            'Appointments': 'Rendez-vous',
-                            'Appointments (Total)': 'Rendez-vous (Total)',
-                            'Paid by Gift Voucher': 'Payés par Bon Cadeau',
-                            'Paid by Other Methods': 'Payés via Mode de Paiement Standard (hors Bon Cadeau)',
-                            'Packages': 'Forfaits',
-                            'Appointments (Paid by Gift Voucher)': 'Rendez-vous (Payés par Bon Cadeau)',
-                            'Products': 'Produits',
-                            'Gift Vouchers': 'Bons Cadeaux',
-                            'Excl. VAT': 'HT',
-                            'VAT': 'TVA',
-                            'Incl. VAT': 'TTC',
-                            'Payment Methods Breakdown': 'Répartition par Moyen de Paiement',
-                            'Total Collected': 'Total Encaissé',
-                            'Cash': 'Espèces',
-                            'Card (In-Store)': 'Carte au Salon',
-                            'Bank Transfer': 'Virement Bancaire',
-                            'Check': 'Chèque',
-                            'Other': 'Autre',
-                            'Gift Voucher Used': 'Bon Cadeau Utilisé',
-                            'Card (Online)': 'Carte en Ligne'
-                        }[key] || key;
-                    }
-                    // Version anglaise
+                if (exportLanguage === 'fr') {
                     return {
-                        'Paid by Other Methods': 'Paid via Standard Payment Methods (excl. Gift Vouchers)'
+                        'Total Period': 'Total Période',
+                        'Total Period (Excl. Gift Voucher Payments)': 'Total Période (Hors Paiements par Bon Cadeau)',
+                        'Appointments': 'Rendez-vous',
+                        'Appointments (Total)': 'Rendez-vous (Total)',
+                        'Paid by Gift Voucher': 'Payés par Bon Cadeau',
+                        'Paid by Other Methods': 'Payés via Mode de Paiement Standard (hors Bon Cadeau)',
+                        'Packages': 'Forfaits',
+                        'Appointments (Paid by Gift Voucher)': 'Rendez-vous (Payés par Bon Cadeau)',
+                        'Products': 'Produits',
+                        'Gift Vouchers': 'Bons Cadeaux',
+                        'Tips': 'Pourboires',
+                        'Excl. VAT': 'HT',
+                        'VAT': 'TVA',
+                        'Incl. VAT': 'TTC',
+                        'Payment Methods Breakdown': 'Répartition par Moyen de Paiement',
+                        'Total Collected': 'Total Encaissé',
+                        'Cash': 'Espèces',
+                        'Card (In-Store)': 'Carte au Salon',
+                        'Bank Transfer': 'Virement Bancaire',
+                        'Check': 'Chèque',
+                        'Other': 'Autre',
+                        'Gift Voucher Used': 'Bon Cadeau Utilisé',
+                        'Card (Online)': 'Carte en Ligne'
                     }[key] || key;
+                }
+                return {
+                    'Paid by Other Methods': 'Paid via Standard Payment Methods (excl. Gift Vouchers)'
+                }[key] || key;
+            };
+
+            const calculatePaymentMethods = () => {
+                const payments = {
+                    cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0,
+                    other: 0, gift_voucher: 0, online_card: 0, tips: 0, total: 0
                 };
-                const calculatePaymentMethods = () => {
-                    const payments = {
-                        cash: 0,
-                        instore_card: 0,
-                        bank_transfer: 0,
-                        cheque: 0,
-                        other: 0,
-                        gift_voucher: 0,
-                        online_card: 0,
-                        total: 0
-                    };
-                    
-                    // Identifier les paiements remboursés (transaction contient "refunded")
-                    const refundedPayments = new Set();
-                    data.forEach(row => {
-                        const transaction = row.transaction?.toLowerCase() || '';
-                        if (transaction.includes('refund') || transaction.includes('remboursement')) {
-                            refundedPayments.add(row.payment);
-                        }
-                    });
-                    
-                    // Grouper par payment ID et calculer le net (négatifs + positifs)
-                    const paymentNets = {};
-                    data.forEach(row => {
-                        const transaction = row.transaction?.toLowerCase() || '';
-                        const grossValue = parseFloat(row.gross_value) || 0;
-                        const paymentId = row.payment;
-                        
-                        // Ignorer les paiements remboursés
-                        if (refundedPayments.has(paymentId)) {
-                            return;
-                        }
-                        
-                        // Calculer le montant net par type de transaction
-                        if (transaction === 'cash' || transaction === 'en espèces' || transaction === 'espèces') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].cash += grossValue;
-                        } else if (transaction === 'instore card' || transaction === 'par carte au salon') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].instore_card += grossValue;
-                        } else if (transaction === 'bank transfer' || transaction === 'virement bancaire') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].bank_transfer += grossValue;
-                        } else if (transaction === 'cheque' || transaction === 'chèque') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].cheque += grossValue;
-                        } else if (transaction === 'other' || transaction === 'autre') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].other += grossValue;
-                        } else if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].gift_voucher += grossValue;
-                        } else if (transaction === 'online_card_payment' || transaction === 'paiement par carte en ligne') {
-                            if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
-                            paymentNets[paymentId].online_card += grossValue;
-                        }
-                    });
-                    
-                    // Additionner les montants nets (seulement si négatif = paiement effectif)
-                    Object.values(paymentNets).forEach(net => {
-                        if (net.cash < 0) { payments.cash += Math.abs(net.cash); payments.total += Math.abs(net.cash); }
-                        if (net.instore_card < 0) { payments.instore_card += Math.abs(net.instore_card); payments.total += Math.abs(net.instore_card); }
-                        if (net.bank_transfer < 0) { payments.bank_transfer += Math.abs(net.bank_transfer); payments.total += Math.abs(net.bank_transfer); }
-                        if (net.cheque < 0) { payments.cheque += Math.abs(net.cheque); payments.total += Math.abs(net.cheque); }
-                        if (net.other < 0) { payments.other += Math.abs(net.other); payments.total += Math.abs(net.other); }
-                        if (net.gift_voucher < 0) { payments.gift_voucher += Math.abs(net.gift_voucher); payments.total += Math.abs(net.gift_voucher); }
-                        if (net.online_card < 0) { payments.online_card += Math.abs(net.online_card); payments.total += Math.abs(net.online_card); }
-                    });
-                    
-                    return payments;
-                };
-                const calculatePendingPayments = () => {
-                    const pendingPayments = [];
-                    const paymentGroups = {};
-                    
-                    // Grouper par payment ID
-                    data.forEach(row => {
-                        const paymentId = row.payment;
-                        if (!paymentGroups[paymentId]) {
-                            paymentGroups[paymentId] = [];
-                        }
-                        paymentGroups[paymentId].push(row);
-                    });
-                    
-                    // Identifier les paiements remboursés
-                    const refundedPayments = new Set();
-                    data.forEach(row => {
-                        const transaction = row.transaction?.toLowerCase() || '';
-                        if (transaction.includes('refund') || transaction.includes('remboursement')) {
-                            refundedPayments.add(row.payment);
-                        }
-                    });
-                    
-                    // Analyser chaque groupe de paiement
-                    Object.keys(paymentGroups).forEach(paymentId => {
-                        const group = paymentGroups[paymentId];
-                        
-                        // Ignorer les paiements remboursés
-                        if (refundedPayments.has(paymentId)) {
-                            return;
-                        }
-                        
-                        // Calculer le total des services/produits (positif) - SÉPARÉ
-                        let totalDueServices = 0;
-                        let totalDueProducts = 0;
-                        const serviceItems = [];
-                        const productItems = [];
-                        
-                        group.forEach(row => {
-                            const transaction = row.transaction?.toLowerCase() || '';
-                            const grossValue = parseFloat(row.gross_value) || 0;
-                            
-                            if (grossValue > 0) {
-                                if (transaction === 'appointment' || transaction === 'package_sale') {
-                                    totalDueServices += grossValue;
-                                    serviceItems.push(row);
-                                } else if (transaction === 'product_sale' || transaction === 'gift_voucher_sale') {
-                                    totalDueProducts += grossValue;
-                                    productItems.push(row);
-                                }
-                            }
-                        });
-                        
-                        const totalDue = totalDueServices + totalDueProducts;
-                        const allItems = [...serviceItems, ...productItems];
-                        
-                        // Calculer le total des paiements (somme algébrique pour gérer les annulations)
-                        let totalPaid = 0;
-                        const paymentsByType = {};
-                        
-                        group.forEach(row => {
-                            const transaction = row.transaction?.toLowerCase() || '';
-                            const grossValue = parseFloat(row.gross_value) || 0;
-                            
-                            // Tous les paiements (négatifs et positifs si annulation)
-                            if (transaction !== 'appointment' && 
-                                transaction !== 'product_sale' && 
-                                transaction !== 'package_sale' &&
-                                transaction !== 'gift_voucher_sale' &&
-                                grossValue !== 0 &&
-                                !transaction.includes('refund')) {
-                                
-                                if (!paymentsByType[transaction]) {
-                                    paymentsByType[transaction] = 0;
-                                }
-                                paymentsByType[transaction] += grossValue;
-                            }
-                        });
-                        
-                        // Calculer le total réellement payé (somme des valeurs négatives nettes)
-                        Object.values(paymentsByType).forEach(amount => {
-                            if (amount < 0) {
-                                totalPaid += Math.abs(amount);
-                            }
-                        });
-                        
-                        // Si le montant payé est inférieur au montant dû
-                        const amountPending = totalDue - totalPaid;
-                        
-                        if (amountPending > 0.01) { // Seuil de 1 centime pour éviter les erreurs d'arrondi
-                            pendingPayments.push({
-                                paymentId: paymentId,
-                                totalDue: totalDue,
-                                totalDueServices: totalDueServices,
-                                totalDueProducts: totalDueProducts,
-                                totalPaid: totalPaid,
-                                amountPending: amountPending,
-                                items: allItems,
-                                serviceItems: serviceItems,
-                                productItems: productItems,
-                                date: allItems[0]?.['Heure et jour'] || allItems[0]?.['datetime'] || allItems[0]?.['Date and time'] || '',
-                                customer: allItems[0]?.customer_name || '',
-                                shop: allItems[0]?.shop || '',
-                                employee: allItems[0]?.employee || '',
-                                url: group.find(r => r.url)?.url || ''
-                            });
-                        }
-                    });
-                    
-                    return pendingPayments;
-                };
-            const calculateAnomalies = () => {
-                const anomalies = [];
-                const paymentGroups = {};
                 
-                // Grouper par payment ID
-                data.forEach(row => {
-                    const paymentId = row.payment;
-                    if (!paymentGroups[paymentId]) {
-                        paymentGroups[paymentId] = [];
-                    }
-                    paymentGroups[paymentId].push(row);
-                });
-                
-                // Identifier les paiements remboursés
                 const refundedPayments = new Set();
                 data.forEach(row => {
                     const transaction = row.transaction?.toLowerCase() || '';
@@ -1551,79 +1026,147 @@
                     }
                 });
                 
-                // Analyser chaque groupe
-                Object.keys(paymentGroups).forEach(paymentId => {
-                    const group = paymentGroups[paymentId];
+                const paymentNets = {};
+                data.forEach(row => {
+                    const transaction = row.transaction?.toLowerCase() || '';
+                    const grossValue = parseFloat(row.gross_value) || 0;
+                    const paymentId = row.payment;
                     
-                    // Ignorer les paiements remboursés
-                    if (refundedPayments.has(paymentId)) {
+                    if (refundedPayments.has(paymentId)) return;
+
+                    // Tips: always positive, tracked directly
+                    if (transaction === 'tip') {
+                        payments.tips += grossValue;
+                        payments.total += grossValue;
                         return;
                     }
                     
-                    // Calculer le total des services/produits
-                    let totalServices = 0;
-                    const serviceItems = [];
-                    
-                    group.forEach(row => {
-                        const transaction = row.transaction?.toLowerCase() || '';
-                        const grossValue = parseFloat(row.gross_value) || 0;
-                        
-                        if ((transaction === 'appointment' || transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') && grossValue >= 0) {
-                            totalServices += grossValue;
-                            if (grossValue === 0) {
-                                serviceItems.push(row);
-                            }
-                        }
-                    });
-                    
-                    // Calculer le total réellement encaissé (net des annulations)
-                    let totalPaid = 0;
-                    const paymentsByType = {};
-                    
-                    group.forEach(row => {
-                        const transaction = row.transaction?.toLowerCase() || '';
-                        const grossValue = parseFloat(row.gross_value) || 0;
-                        
-                        if (transaction !== 'appointment' && 
-                            transaction !== 'product_sale' && 
-                            grossValue !== 0 &&
-                            !transaction.includes('refund')) {
-                            
-                            if (!paymentsByType[transaction]) {
-                                paymentsByType[transaction] = 0;
-                            }
-                            paymentsByType[transaction] += grossValue;
-                        }
-                    });
-                    
-                    // Calculer le total réellement payé (somme des valeurs négatives nettes)
-                    Object.values(paymentsByType).forEach(amount => {
-                        if (amount < 0) {
-                            totalPaid += Math.abs(amount);
-                        }
-                    });
-                    
-                    // Anomalie : Service = 0€ MAIS paiement encaissé
-                    if (totalServices === 0 && totalPaid > 0 && serviceItems.length > 0) {
-                        // Calculer la TVA sur le montant encaissé
-                        const vatAmount = (totalPaid * (vatRateAppointment / (100 + vatRateAppointment)));
-                        
-                        anomalies.push({
-                            paymentId: paymentId,
-                            totalServices: totalServices,
-                            totalPaid: totalPaid,
-                            vatAmount: vatAmount,
-                            vatRate: vatRateAppointment,
-                            items: serviceItems,
-                            date: serviceItems[0]?.['Heure et jour'] || serviceItems[0]?.['datetime'] || serviceItems[0]?.['Date and time'] || '',
-                            customer: serviceItems[0]?.customer_name || '',
-                            shop: serviceItems[0]?.shop || '',
-                            employee: serviceItems[0]?.employee || '',
-                            url: group.find(r => r.url)?.url || ''
-                        });
+                    if (transaction === 'cash' || transaction === 'en espèces' || transaction === 'espèces') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].cash += grossValue;
+                    } else if (transaction === 'instore card' || transaction === 'par carte au salon') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].instore_card += grossValue;
+                    } else if (transaction === 'bank transfer' || transaction === 'virement bancaire') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].bank_transfer += grossValue;
+                    } else if (transaction === 'cheque' || transaction === 'chèque') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].cheque += grossValue;
+                    } else if (transaction === 'other' || transaction === 'autre') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].other += grossValue;
+                    } else if (transaction === 'gift_voucher_applied' || transaction === 'gift_vouhcher_applied') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].gift_voucher += grossValue;
+                    } else if (transaction === 'online_card_payment' || transaction === 'paiement par carte en ligne') {
+                        if (!paymentNets[paymentId]) paymentNets[paymentId] = { cash: 0, instore_card: 0, bank_transfer: 0, cheque: 0, other: 0, gift_voucher: 0, online_card: 0 };
+                        paymentNets[paymentId].online_card += grossValue;
                     }
                 });
                 
+                Object.values(paymentNets).forEach(net => {
+                    if (net.cash < 0) { payments.cash += Math.abs(net.cash); payments.total += Math.abs(net.cash); }
+                    if (net.instore_card < 0) { payments.instore_card += Math.abs(net.instore_card); payments.total += Math.abs(net.instore_card); }
+                    if (net.bank_transfer < 0) { payments.bank_transfer += Math.abs(net.bank_transfer); payments.total += Math.abs(net.bank_transfer); }
+                    if (net.cheque < 0) { payments.cheque += Math.abs(net.cheque); payments.total += Math.abs(net.cheque); }
+                    if (net.other < 0) { payments.other += Math.abs(net.other); payments.total += Math.abs(net.other); }
+                    if (net.gift_voucher < 0) { payments.gift_voucher += Math.abs(net.gift_voucher); payments.total += Math.abs(net.gift_voucher); }
+                    if (net.online_card < 0) { payments.online_card += Math.abs(net.online_card); payments.total += Math.abs(net.online_card); }
+                });
+                
+                return payments;
+            };
+
+            const calculatePendingPayments = () => {
+                const pendingPayments = [];
+                const paymentGroups = {};
+                data.forEach(row => {
+                    const paymentId = row.payment;
+                    if (!paymentGroups[paymentId]) paymentGroups[paymentId] = [];
+                    paymentGroups[paymentId].push(row);
+                });
+                const refundedPayments = new Set();
+                data.forEach(row => {
+                    const transaction = row.transaction?.toLowerCase() || '';
+                    if (transaction.includes('refund') || transaction.includes('remboursement')) refundedPayments.add(row.payment);
+                });
+                Object.keys(paymentGroups).forEach(paymentId => {
+                    const group = paymentGroups[paymentId];
+                    if (refundedPayments.has(paymentId)) return;
+                    let totalDueServices = 0, totalDueProducts = 0;
+                    const serviceItems = [], productItems = [];
+                    group.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        if (grossValue > 0) {
+                            if (transaction === 'appointment' || transaction === 'package_sale') { totalDueServices += grossValue; serviceItems.push(row); }
+                            else if (transaction === 'product_sale' || transaction === 'gift_voucher_sale') { totalDueProducts += grossValue; productItems.push(row); }
+                        }
+                    });
+                    const totalDue = totalDueServices + totalDueProducts;
+                    const allItems = [...serviceItems, ...productItems];
+                    let totalPaid = 0;
+                    const paymentsByType = {};
+                    group.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        if (transaction !== 'appointment' && transaction !== 'product_sale' && transaction !== 'package_sale' && transaction !== 'gift_voucher_sale' && transaction !== 'tip' && grossValue !== 0 && !transaction.includes('refund')) {
+                            if (!paymentsByType[transaction]) paymentsByType[transaction] = 0;
+                            paymentsByType[transaction] += grossValue;
+                        }
+                    });
+                    Object.values(paymentsByType).forEach(amount => { if (amount < 0) totalPaid += Math.abs(amount); });
+                    const amountPending = totalDue - totalPaid;
+                    if (amountPending > 0.01) {
+                        pendingPayments.push({ paymentId, totalDue, totalDueServices, totalDueProducts, totalPaid, amountPending, items: allItems, serviceItems, productItems, date: allItems[0]?.['Heure et jour'] || allItems[0]?.['datetime'] || allItems[0]?.['Date and time'] || '', customer: allItems[0]?.customer_name || '', shop: allItems[0]?.shop || '', employee: allItems[0]?.employee || '', url: group.find(r => r.url)?.url || '' });
+                    }
+                });
+                return pendingPayments;
+            };
+
+            const calculateAnomalies = () => {
+                const anomalies = [];
+                const paymentGroups = {};
+                data.forEach(row => {
+                    const paymentId = row.payment;
+                    if (!paymentGroups[paymentId]) paymentGroups[paymentId] = [];
+                    paymentGroups[paymentId].push(row);
+                });
+                const refundedPayments = new Set();
+                data.forEach(row => {
+                    const transaction = row.transaction?.toLowerCase() || '';
+                    if (transaction.includes('refund') || transaction.includes('remboursement')) refundedPayments.add(row.payment);
+                });
+                Object.keys(paymentGroups).forEach(paymentId => {
+                    const group = paymentGroups[paymentId];
+                    if (refundedPayments.has(paymentId)) return;
+                    let totalServices = 0;
+                    const serviceItems = [];
+                    group.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        if ((transaction === 'appointment' || transaction === 'product_sale' || transaction === 'package_sale' || transaction === 'gift_voucher_sale') && grossValue >= 0) {
+                            totalServices += grossValue;
+                            if (grossValue === 0) serviceItems.push(row);
+                        }
+                    });
+                    let totalPaid = 0;
+                    const paymentsByType = {};
+                    group.forEach(row => {
+                        const transaction = row.transaction?.toLowerCase() || '';
+                        const grossValue = parseFloat(row.gross_value) || 0;
+                        if (transaction !== 'appointment' && transaction !== 'product_sale' && transaction !== 'tip' && grossValue !== 0 && !transaction.includes('refund')) {
+                            if (!paymentsByType[transaction]) paymentsByType[transaction] = 0;
+                            paymentsByType[transaction] += grossValue;
+                        }
+                    });
+                    Object.values(paymentsByType).forEach(amount => { if (amount < 0) totalPaid += Math.abs(amount); });
+                    if (totalServices === 0 && totalPaid > 0 && serviceItems.length > 0) {
+                        const vatAmount = (totalPaid * (vatRateAppointment / (100 + vatRateAppointment)));
+                        anomalies.push({ paymentId, totalServices, totalPaid, vatAmount, vatRate: vatRateAppointment, items: serviceItems, date: serviceItems[0]?.['Heure et jour'] || serviceItems[0]?.['datetime'] || serviceItems[0]?.['Date and time'] || '', customer: serviceItems[0]?.customer_name || '', shop: serviceItems[0]?.shop || '', employee: serviceItems[0]?.employee || '', url: group.find(r => r.url)?.url || '' });
+                    }
+                });
                 return anomalies;
             };
                     
@@ -1645,7 +1188,7 @@
                                 Import your payment CSV file to automatically calculate VAT. <strong>VAT is only calculated for paid transactions.</strong>
                                 <br/>
                                 <span className="text-sm mt-2 block text-indigo-600">
-                                    ✨ <strong>Automatic detection:</strong> Products, packages, and gift vouchers are automatically identified from the transaction type.
+                                    ✨ <strong>Automatic detection:</strong> Products, packages, gift vouchers, and tips are automatically identified from the transaction type.
                                 </span>
                             </p>
 
@@ -1686,20 +1229,16 @@
                                                 <input type="checkbox" checked={enableSpecificProductRate} onChange={(e) => setEnableSpecificProductRate(e.target.checked)} className="w-4 h-4"/>
                                                 <span className="text-xs font-medium text-gray-700">Enable specific rate</span>
                                             </label>
-
                                             {enableSpecificProductRate && (
                                                 <div className="ml-6 space-y-2">
                                                     <input type="text" value={specificProductCategoryName} onChange={(e) => setSpecificProductCategoryName(e.target.value)} placeholder="Category name" className="w-full px-2 py-1 text-xs border rounded"/>
-                                                    
                                                     <div className="flex gap-2">
                                                         <button onClick={() => setVatRateProductSpecific(0)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 0 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>0%</button>
                                                         <button onClick={() => setVatRateProductSpecific(5.5)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 5.5 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>5.5%</button>
                                                         <button onClick={() => setVatRateProductSpecific(10)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 10 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>10%</button>
                                                         <button onClick={() => setVatRateProductSpecific(20)} className={`px-2 py-1 rounded text-xs ${vatRateProductSpecific === 20 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>20%</button>
                                                     </div>
-                                                    
                                                     <input type="number" min="0" max="100" step="0.1" value={vatRateProductSpecific} onChange={(e) => setVatRateProductSpecific(parseFloat(e.target.value) || 0)} placeholder="Custom" className="w-20 px-2 py-1 text-xs border rounded"/>
-                                                    
                                                     <div>
                                                         <label className="block text-xs font-medium text-gray-700 mb-1">Product names:</label>
                                                         <textarea value={specificProductKeywords} onChange={(e) => setSpecificProductKeywords(e.target.value)} rows="3" placeholder="Enter exact product names separated by commas" className="w-full px-2 py-1 text-xs border rounded"/>
@@ -1716,7 +1255,7 @@
                                             <p className="text-xs text-yellow-800">
                                                 <strong>⚠️ Important: Check with the client when VAT should be declared:</strong>
                                                 <br/>• <strong>At voucher purchase</strong> → Set appropriate rate
-                                                <br/>• <strong>At voucher use</strong> → Keep at 0% (VAT will be declared when used)
+                                                <br/>• <strong>At voucher use</strong> → Keep at 0%
                                             </p>
                                         </div>
                                         <div className="flex gap-2 mb-3">
@@ -1733,6 +1272,7 @@
                                     </div>
                                 </div>
                             </div>
+
                             <div className="flex flex-wrap gap-3 mb-6">
                                 <label className="flex-1 min-w-[200px] cursor-pointer">
                                     <div className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg">
@@ -1749,21 +1289,9 @@
                                             <button onClick={() => setExportLanguage('en')} className={`px-3 py-1 rounded text-sm ${exportLanguage === 'en' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>🇬🇧 EN</button>
                                             <button onClick={() => setExportLanguage('fr')} className={`px-3 py-1 rounded text-sm ${exportLanguage === 'fr' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>🇫🇷 FR</button>
                                         </div>
-
-                                        <button onClick={downloadCSV} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg">
-                                            <FileText />
-                                            <span>CSV</span>
-                                        </button>
-
-                                        <button onClick={downloadExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg">
-                                            <FileSpreadsheet />
-                                            <span>Excel</span>
-                                        </button>
-
-                                        <button onClick={downloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg">
-                                            <FileType />
-                                            <span>Print</span>
-                                        </button>
+                                        <button onClick={downloadCSV} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg"><FileText /><span>CSV</span></button>
+                                        <button onClick={downloadExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg"><FileSpreadsheet /><span>Excel</span></button>
+                                        <button onClick={downloadPDF} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg"><FileType /><span>Print</span></button>
                                     </>
                                 )}
                             </div>
@@ -1773,7 +1301,6 @@
                                     <p className="text-blue-800"><strong>File loaded:</strong> {fileName} {data.length > 0 && `(${data.length} rows)`}</p>
                                 </div>
                             )}
-
                             {error && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                                     <p className="text-red-800">{error}</p>
@@ -1783,9 +1310,9 @@
 
                         {data.length > 0 && summary && (
                             <>
+                                {/* ===== DETAILED REVENUE TABLE ===== */}
                                 <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
                                     <h2 className="text-2xl font-bold text-gray-800 mb-4">📊 {exportLanguage === 'fr' ? 'Chiffre d\'Affaires Détaillé' : 'Detailed Revenue'}</h2>
-                                    
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead className="bg-indigo-600 text-white">
@@ -1797,7 +1324,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                               <tr className="bg-indigo-50 border-b-2 border-indigo-600">
+                                                <tr className="bg-indigo-50 border-b-2 border-indigo-600">
                                                     <td className="px-4 py-3 font-bold text-indigo-900">{translate('Total Period')}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.ht)}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-indigo-900">{formatCurrency(summary.total.tva)}</td>
@@ -1956,15 +1483,33 @@
                                                         <td className="px-4 py-3 text-right font-semibold">{formatCurrency(summary.giftVouchers.ttc)}</td>
                                                     </tr>
                                                 )}
+
+                                                {/* Tips - separate row with visual separator and accountant note */}
+                                                {summary.tips.ttc > 0 && (
+                                                    <>
+                                                        <tr><td colSpan="4" className="px-4 py-1 bg-gray-100 border-t-2 border-gray-300"></td></tr>
+                                                        <tr className="bg-amber-50 hover:bg-amber-100 border border-amber-300">
+                                                            <td className="px-4 py-3 text-amber-800">
+                                                                <div className="font-semibold">💰 {exportLanguage === 'fr' ? 'Pourboires' : 'Tips'}</div>
+                                                                <div className="text-xs text-amber-600 mt-1">
+                                                                    ⚠️ {exportLanguage === 'fr' ? 'Hors TVA déclarable — à vérifier avec votre comptable' : 'Excl. from declarable VAT — verify with your accountant'}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right text-amber-800">{formatCurrency(summary.tips.ttc)}</td>
+                                                            <td className="px-4 py-3 text-right text-amber-600 text-sm">0.00 €</td>
+                                                            <td className="px-4 py-3 text-right font-semibold text-amber-800">{formatCurrency(summary.tips.ttc)}</td>
+                                                        </tr>
+                                                    </>
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
                                 
-                                {data.length > 0 && paymentMethods && (
+                                {/* ===== PAYMENT METHODS TABLE ===== */}
+                                {paymentMethods && (
                                     <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
                                         <h2 className="text-2xl font-bold text-gray-800 mb-4">💳 {exportLanguage === 'fr' ? 'Répartition par Moyen de Paiement' : 'Payment Methods Breakdown'}</h2>
-                                        
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
                                                 <thead className="bg-purple-600 text-white">
@@ -1978,81 +1523,49 @@
                                                         <td className="px-4 py-3 font-bold text-purple-900">{translate('Total Collected')}</td>
                                                         <td className="px-4 py-3 text-right font-bold text-purple-900">{formatCurrency(paymentMethods.total)}</td>
                                                     </tr>
+                                                    {paymentMethods.cash > 0 && (<tr className="bg-gray-50 hover:bg-gray-100"><td className="px-4 py-3 text-gray-800">💵 {translate('Cash')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.cash)}</td></tr>)}
+                                                    {paymentMethods.instore_card > 0 && (<tr className="bg-gray-50 hover:bg-gray-100"><td className="px-4 py-3 text-gray-800">💳 {translate('Card (In-Store)')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.instore_card)}</td></tr>)}
+                                                    {paymentMethods.online_card > 0 && (<tr className="bg-gray-50 hover:bg-gray-100"><td className="px-4 py-3 text-gray-800">🌐 {translate('Card (Online)')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.online_card)}</td></tr>)}
+                                                    {paymentMethods.bank_transfer > 0 && (<tr className="bg-gray-50 hover:bg-gray-100"><td className="px-4 py-3 text-gray-800">🏦 {translate('Bank Transfer')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.bank_transfer)}</td></tr>)}
+                                                    {paymentMethods.cheque > 0 && (<tr className="bg-gray-50 hover:bg-gray-100"><td className="px-4 py-3 text-gray-800">📝 {translate('Check')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.cheque)}</td></tr>)}
+                                                    {paymentMethods.gift_voucher > 0 && (<tr className="bg-purple-50 hover:bg-purple-100"><td className="px-4 py-3 text-purple-800">🎁 {translate('Gift Voucher Used')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.gift_voucher)}</td></tr>)}
+                                                    {paymentMethods.other > 0 && (<tr className="bg-gray-50 hover:bg-gray-100"><td className="px-4 py-3 text-gray-800">❓ {translate('Other')}</td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.other)}</td></tr>)}
                                                     
-                                                    {paymentMethods.cash > 0 && (
-                                                        <tr className="bg-gray-50 hover:bg-gray-100">
-                                                            <td className="px-4 py-3 text-gray-800">💵 {translate('Cash')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.cash)}</td>
-                                                        </tr>
-                                                    )}
-                                                    
-                                                    {paymentMethods.instore_card > 0 && (
-                                                        <tr className="bg-gray-50 hover:bg-gray-100">
-                                                            <td className="px-4 py-3 text-gray-800">💳 {translate('Card (In-Store)')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.instore_card)}</td>
-                                                        </tr>
-                                                    )}
-                                                    
-                                                    {paymentMethods.online_card > 0 && (
-                                                        <tr className="bg-gray-50 hover:bg-gray-100">
-                                                            <td className="px-4 py-3 text-gray-800">🌐 {translate('Card (Online)')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.online_card)}</td>
-                                                        </tr>
-                                                    )}
-                                                    
-                                                    {paymentMethods.bank_transfer > 0 && (
-                                                        <tr className="bg-gray-50 hover:bg-gray-100">
-                                                            <td className="px-4 py-3 text-gray-800">🏦 {translate('Bank Transfer')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.bank_transfer)}</td>
-                                                        </tr>
-                                                    )}
-                                                    
-                                                    {paymentMethods.cheque > 0 && (
-                                                        <tr className="bg-gray-50 hover:bg-gray-100">
-                                                            <td className="px-4 py-3 text-gray-800">📝 {translate('Check')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.cheque)}</td>
-                                                        </tr>
-                                                    )}
-                                                    
-                                                    {paymentMethods.gift_voucher > 0 && (
-                                                        <tr className="bg-purple-50 hover:bg-purple-100">
-                                                            <td className="px-4 py-3 text-purple-800">🎁 {translate('Gift Voucher Used')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.gift_voucher)}</td>
-                                                        </tr>
-                                                    )}
-                                                    
-                                                    {paymentMethods.other > 0 && (
-                                                        <tr className="bg-gray-50 hover:bg-gray-100">
-                                                            <td className="px-4 py-3 text-gray-800">❓ {translate('Other')}</td>
-                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(paymentMethods.other)}</td>
-                                                        </tr>
+                                                    {/* Tips dedicated line in payment methods */}
+                                                    {paymentMethods.tips > 0 && (
+                                                        <>
+                                                            <tr><td colSpan="2" className="px-4 py-1 bg-gray-100 border-t-2 border-gray-300"></td></tr>
+                                                            <tr className="bg-amber-50 hover:bg-amber-100 border border-amber-300">
+                                                                <td className="px-4 py-3 text-amber-800">
+                                                                    <div className="font-semibold">💰 {exportLanguage === 'fr' ? 'Pourboires' : 'Tips'}</div>
+                                                                    <div className="text-xs text-amber-600 mt-1">⚠️ {exportLanguage === 'fr' ? 'À vérifier avec votre comptable' : 'Verify with your accountant'}</div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right font-semibold text-amber-800">{formatCurrency(paymentMethods.tips)}</td>
+                                                            </tr>
+                                                        </>
                                                     )}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
                                 )}
-                                {data.length > 0 && anomalies && anomalies.length > 0 && (
+
+                                {/* ===== ANOMALIES ===== */}
+                                {anomalies && anomalies.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
                                         <h2 className="text-2xl font-bold text-gray-800 mb-4">⚠️ {exportLanguage === 'fr' ? 'Anomalies Détectées' : 'Anomalies Detected'}</h2>
-                                        
                                         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                                            <p className="text-sm text-red-800">
-                                                {exportLanguage === 'fr' 
-                                                    ? '⚠️ Ces transactions montrent un service annulé (0€) mais un paiement a été encaissé. Vérifiez s\'il s\'agit de frais d\'annulation (TVA applicable) ou d\'un remboursement à effectuer.'
-                                                    : '⚠️ These transactions show a cancelled service (0€) but a payment was collected. Check if these are cancellation fees (VAT applicable) or if a refund should be issued.'}
-                                            </p>
+                                            <p className="text-sm text-red-800">{exportLanguage === 'fr' ? '⚠️ Ces transactions montrent un service annulé (0€) mais un paiement a été encaissé. Vérifiez s\'il s\'agit de frais d\'annulation (TVA applicable) ou d\'un remboursement à effectuer.' : '⚠️ These transactions show a cancelled service (0€) but a payment was collected. Check if these are cancellation fees (VAT applicable) or if a refund should be issued.'}</p>
                                         </div>
-                                        
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
                                                 <thead className="bg-red-600 text-white">
                                                     <tr>
-                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'ID' : 'ID'}</th>
+                                                        <th className="px-4 py-3 text-left">ID</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Date' : 'Date'}</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Client' : 'Customer'}</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Boutique' : 'Shop'}</th>
-                                                        <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'Service' : 'Service'}</th>
+                                                        <th className="px-4 py-3 text-right">Service</th>
                                                         <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'Encaissé' : 'Collected'}</th>
                                                         <th className="px-4 py-3 text-right">{exportLanguage === 'fr' ? 'TVA Calculée' : 'VAT Calculated'}</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Action Recommandée' : 'Recommended Action'}</th>
@@ -2067,14 +1580,8 @@
                                                             <td className="px-4 py-3 text-sm">{anomaly.shop}</td>
                                                             <td className="px-4 py-3 text-sm text-right">{formatCurrency(anomaly.totalServices)}</td>
                                                             <td className="px-4 py-3 text-sm text-right font-bold text-red-600">{formatCurrency(anomaly.totalPaid)}</td>
-                                                            <td className="px-4 py-3 text-sm text-right font-bold text-red-600">
-                                                                {formatCurrency(anomaly.vatAmount)} ({anomaly.vatRate}%)
-                                                            </td>
-                                                            <td className="px-4 py-3 text-sm text-red-700">
-                                                                {exportLanguage === 'fr' 
-                                                                    ? 'Vérifier : Frais d\'annulation ou Remboursement à faire'
-                                                                    : 'Check: Cancellation fees or Refund needed'}
-                                                            </td>
+                                                            <td className="px-4 py-3 text-sm text-right font-bold text-red-600">{formatCurrency(anomaly.vatAmount)} ({anomaly.vatRate}%)</td>
+                                                            <td className="px-4 py-3 text-sm text-red-700">{exportLanguage === 'fr' ? 'Vérifier : Frais d\'annulation ou Remboursement à faire' : 'Check: Cancellation fees or Refund needed'}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -2083,23 +1590,18 @@
                                     </div>
                                 )}
 
-                                {data.length > 0 && pendingPayments && pendingPayments.length > 0 && (
+                                {/* ===== PENDING PAYMENTS ===== */}
+                                {pendingPayments && pendingPayments.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-lg p-6 mb-6 print-section">
                                         <h2 className="text-2xl font-bold text-gray-800 mb-4">⏳ {exportLanguage === 'fr' ? 'Paiements en Attente' : 'Pending Payments'}</h2>
-                                        
                                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                                            <p className="text-sm text-yellow-800">
-                                                {exportLanguage === 'fr' 
-                                                    ? '⚠️ Ces transactions ont des paiements incomplets ou aucun paiement enregistré. Vérifiez votre régime de TVA pour savoir si vous devez ajuster vos déclarations.'
-                                                    : '⚠️ These transactions have incomplete or no recorded payments. Check your VAT regime to determine if you need to adjust your declarations.'}
-                                            </p>
+                                            <p className="text-sm text-yellow-800">{exportLanguage === 'fr' ? '⚠️ Ces transactions ont des paiements incomplets ou aucun paiement enregistré.' : '⚠️ These transactions have incomplete or no recorded payments.'}</p>
                                         </div>
-                                        
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
                                                 <thead className="bg-orange-600 text-white">
                                                     <tr>
-                                                        <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'ID' : 'ID'}</th>
+                                                        <th className="px-4 py-3 text-left">ID</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Date' : 'Date'}</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Client' : 'Customer'}</th>
                                                         <th className="px-4 py-3 text-left">{exportLanguage === 'fr' ? 'Boutique' : 'Shop'}</th>
@@ -2126,25 +1628,29 @@
                                     </div>
                                 )}
 
+                                {/* ===== FULL DETAIL TABLE ===== */}
                                 <div className="bg-white rounded-lg shadow-lg overflow-hidden print-section">
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead className="bg-indigo-600 text-white">
                                                 <tr>
                                                     {getTableHeaders().map((header, idx) => (
-                                                        <th key={idx} className={`px-4 py-3 text-sm ${idx >= 4 ? 'text-right' : 'text-left'} ${idx === 5 || idx === 6 ? 'text-center' : ''}`}>
-                                                            {header}
-                                                        </th>
+                                                        <th key={idx} className={`px-4 py-3 text-sm ${idx >= 4 ? 'text-right' : 'text-left'} ${idx === 5 || idx === 6 ? 'text-center' : ''}`}>{header}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {data.map((row, i) => (
-                                                    <tr key={i} className={`border-b ${i % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-indigo-50`}>
+                                                    <tr key={i} className={`border-b ${row.vat_category === 'Tip' ? 'bg-amber-50 hover:bg-amber-100' : i % 2 === 0 ? 'bg-gray-50 hover:bg-indigo-50' : 'bg-white hover:bg-indigo-50'}`}>
                                                         <td className="px-4 py-3 text-sm">{row.payment}</td>
                                                         <td className="px-4 py-3 text-sm">{row['Heure et jour'] || row['datetime'] || row['Date and time'] || row['date_and_time'] || '-'}</td>
                                                         <td className="px-4 py-3 text-sm">
-                                                            <span className={`px-2 py-1 rounded text-xs ${row.transaction === 'appointment' ? 'bg-green-100 text-green-800' : row.transaction === 'product_sale' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                            <span className={`px-2 py-1 rounded text-xs ${
+                                                                row.transaction === 'appointment' ? 'bg-green-100 text-green-800' :
+                                                                row.transaction === 'product_sale' ? 'bg-blue-100 text-blue-800' :
+                                                                row.transaction === 'tip' ? 'bg-amber-100 text-amber-800' :
+                                                                'bg-gray-100 text-gray-800'
+                                                            }`}>
                                                                 {row.transaction}
                                                             </span>
                                                         </td>
@@ -2153,9 +1659,10 @@
                                                         <td className="px-4 py-3 text-sm text-center">
                                                             {row.vat_category && (
                                                                 <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                                                    row.vat_category === 'Appointment' || row.vat_category === 'Package' ? 'bg-green-100 text-green-800' : 
-                                                                    row.vat_category === 'Product' ? 'bg-blue-100 text-blue-800' : 
-                                                                    row.vat_category === specificProductCategoryName ? 'bg-cyan-100 text-cyan-800' : 
+                                                                    row.vat_category === 'Appointment' || row.vat_category === 'Package' ? 'bg-green-100 text-green-800' :
+                                                                    row.vat_category === 'Product' ? 'bg-blue-100 text-blue-800' :
+                                                                    row.vat_category === specificProductCategoryName ? 'bg-cyan-100 text-cyan-800' :
+                                                                    row.vat_category === 'Tip' ? 'bg-amber-100 text-amber-800' :
                                                                     'bg-purple-100 text-purple-800'
                                                                 }`}>
                                                                     {translateCategory(row.vat_category)}
@@ -2163,9 +1670,12 @@
                                                             )}
                                                         </td>
                                                         <td className="px-4 py-3 text-sm text-center">
-                                                            {row.vat_rate !== '' && <span className="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">{row.vat_rate}%</span>}
+                                                            {row.vat_category === 'Tip'
+                                                                ? <span className="px-2 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-700">0% ⚠️</span>
+                                                                : row.vat_rate !== '' && <span className="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">{row.vat_rate}%</span>
+                                                            }
                                                         </td>
-                                                        <td className="px-4 py-3 text-sm text-right font-bold text-indigo-600">{row.vat_amount ? formatCurrency(row.vat_amount) : '-'}</td>
+                                                        <td className="px-4 py-3 text-sm text-right font-bold text-indigo-600">{row.vat_amount && row.vat_category !== 'Tip' ? formatCurrency(row.vat_amount) : row.vat_category === 'Tip' ? <span className="text-amber-600">—</span> : '-'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
