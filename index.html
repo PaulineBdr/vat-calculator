@@ -206,12 +206,16 @@
                                 const grossValue = parseFloat(row.gross_value) || 0;
 
                                 // ===== TIPS: processed independently, always =====
-                                if (transaction === 'tip') {
+                                // tip is in transaction column; the tip amount is in the employee column
+                                if (transaction === 'tip' || type === 'tip') {
+                                    // Amount is in employee column (not gross_value)
+                                    const tipAmount = parseFloat(row.employee) || parseFloat(row.gross_value) || 0;
+                                    row.gross_value = tipAmount;
                                     row.vat_rate = 0;
                                     row.vat_amount = '0.00';
                                     row.vat_category = 'Tip';
                                     parsedData.push(row);
-                                    return; // skip the rest of the logic
+                                    return;
                                 }
                                 
                                 if (hasPayment && grossValue > 0) {
@@ -752,6 +756,10 @@
                     if (hasTransaction(['other', 'autre'])) createPaymentSheet(['other', 'autre'], exportLanguage === 'fr' ? 'Autre' : 'Other');
                     // Tips dedicated sheet
                     if (hasTransaction(['tip'])) createPaymentSheet(['tip'], exportLanguage === 'fr' ? 'Pourboires' : 'Tips');
+                    // Also create tips sheet if tip appears in type column
+                    else if (data.some(row => (row.type || '').toLowerCase() === 'tip')) {
+                        createPaymentSheet(['tip'], exportLanguage === 'fr' ? 'Pourboires' : 'Tips');
+                    }
                 }
 
                 // ========================================
@@ -1033,10 +1041,11 @@
                     
                     if (refundedPayments.has(paymentId)) return;
 
-                    // Tips: always positive, tracked directly
-                    if (transaction === 'tip') {
-                        payments.tips += grossValue;
-                        payments.total += grossValue;
+                    // Tips: amount is in employee column
+                    if (transaction === 'tip' || (row.type?.toLowerCase() || '') === 'tip') {
+                        const tipAmount = parseFloat(row.employee) || parseFloat(row.gross_value) || 0;
+                        payments.tips += tipAmount;
+                        payments.total += tipAmount;
                         return;
                     }
                     
